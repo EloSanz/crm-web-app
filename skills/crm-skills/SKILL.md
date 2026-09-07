@@ -21,23 +21,22 @@ una pantalla, una regla o una porción de código, verificá lo que dicen estos
 documentos en vez de improvisar: la consigna es específica y perder un requisito
 cuesta puntos en la evaluación.
 
-## Antes que nada: fijar el tipo de CRM
+## Proyecto ya definido: CRM especializado para un corralón
 
-La consigna obliga a decidir esto **antes** de diseñar. Todo lo demás depende de
-la respuesta.
+El grupo **ya decidió** el proyecto y sus definiciones de negocio y stack. Es un
+**CRM especializado para un corralón de materiales de construcción** que vende a
+contratistas y maestros mayores de obra, donde **una oportunidad = un presupuesto
+de materiales para una obra**.
 
-- **CRM genérico**: sirve para distintos tipos de empresa. Las etapas, tipos de
-  actividad, orígenes, motivos de pérdida, productos/servicios y estados deben ser
-  **configurables** desde el sistema.
-- **CRM especializado** (seguros, inmobiliaria, educación, salud, turismo,
-  concesionaria, servicios profesionales…): dirigido a una industria concreta. La
-  especialización debe producir **cambios reales en el modelo de datos y en el
-  proceso comercial**, no alcanza con renombrar, recolorear o cambiar textos.
+**Antes de modelar, diseñar una pantalla, escribir una regla o codear, leé
+`references/decisiones-del-proyecto.md`: es la fuente de verdad del proyecto.** Ahí
+están el embudo, la entidad Obra, los catálogos, los roles, el stack (Python +
+FastAPI + PostgreSQL + Next.js) y las reglas propias. Si un ejemplo genérico de
+otra referencia choca con esas decisiones, **mandan las decisiones del proyecto**.
 
-Si el grupo **todavía no eligió**, trabajá en modo genérico y dejá los puntos de
-extensión marcados. Cuando elijan industria, leé `references/especializacion.md`
-para adaptar entidades, embudo, reglas y vocabulario. Si te piden ayuda sin que el
-tipo esté definido, preguntá o asumí genérico y decilo explícitamente.
+No trabajes en modo genérico ni vuelvas a preguntar el tipo de CRM: ya está
+resuelto. `references/especializacion.md` queda solo como material de fondo sobre
+*cómo* se especializa un CRM (por qué estas decisiones cumplen la consigna).
 
 ## Reglas invariantes (nunca las rompas)
 
@@ -104,6 +103,10 @@ tareas ni recordatorios.
 
 ## Índice de referencias (leé la que corresponda a la tarea)
 
+- **`references/decisiones-del-proyecto.md`** — **Fuente de verdad del proyecto**
+  (corralón): concepto de oportunidad, entidad Obra, embudo, catálogos, roles,
+  reglas propias y stack. Leelo **primero**, antes de cualquier tarea de modelado,
+  diseño o código.
 - **`references/modelo-de-datos.md`** — Entidades, atributos mínimos, estados y
   relaciones. Leelo al diseñar el modelo, crear tablas/entidades, o definir el
   formulario de alta/edición de cualquier entidad.
@@ -127,10 +130,11 @@ tareas ni recordatorios.
 - **Analizar / diseñar**: partí de las entidades y reglas de las referencias. No
   inventes atributos que la consigna no pide salvo que aporten y lo aclares; no
   omitas los mínimos.
-- **Desarrollar**: el TP no exige un stack ni arquitectura determinada. Respetá el
-  stack que use el grupo y aplicá las convenciones de `convenciones-desarrollo.md`
-  de forma agnóstica. Priorizá que las reglas invariantes queden implementadas de
-  verdad (no solo en la UI).
+- **Desarrollar**: el stack está decidido (Python + FastAPI + PostgreSQL +
+  Next.js; JWT + bcrypt; Docker). Aplicá las convenciones de
+  `convenciones-desarrollo.md` sobre ese stack (SQLAlchemy, Pydantic, dependencias
+  de FastAPI para permisos por rol). Priorizá que las reglas invariantes queden
+  implementadas de verdad (no solo en la UI).
 - **Planificar**: usá el orden obligatorio y las dos entregas como columna
   vertebral.
 - **Revisar**: chequeá contra las reglas invariantes y el alcance. Señalá lo que
