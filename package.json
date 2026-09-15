@@ -1,0 +1,28 @@
+{
+  "name": "crm-web-app",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "dependencies": {
+    "next": "16.3.4"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.0"
+  },
+  "scripts": {
+    "prepare": "node -e \"if (!process.env.VERCEL && !process.env.CI) { try { require('child_process').execSync('npx husky', { stdio: 'inherit' }); } catch (e) {} }\"",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "lint:backend": "uv run ruff check",
+    "format:backend": "uv run ruff format",
+    "test:backend": "uv run pytest",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "uv run uvicorn backend.main:app --reload --port 8000"
+  }
+}

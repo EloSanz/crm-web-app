@@ -1,0 +1,9 @@
+{
+  "*.{js,jsx,ts,tsx}": [
+    "npm --prefix frontend run lint"
+  ],
+  "*.py": [
+    "uv run ruff check --fix",
+    "uv run ruff format"
+  ]
+}

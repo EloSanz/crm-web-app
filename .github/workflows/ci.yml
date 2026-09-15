@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-ci:
+    name: Backend Checks (uv, ruff, pytest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check code formatting (ruff format)
+        run: uv run ruff format --check
+
+      - name: Lint code (ruff check)
+        run: uv run ruff check
+
+      - name: Run unit & integration tests (pytest)
+        env:
+          SUPABASE_URL: "https://placeholder.supabase.co"
+          SUPABASE_PUBLISHABLE_KEY: "placeholder-publishable-key"
+          SUPABASE_SECRET_KEY: "placeholder-secret-key"
+          JWT_SECRET_KEY: "ci-secret-jwt-key"
+        run: uv run pytest
+
+  frontend-ci:
+    name: Frontend Checks (ESLint, build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint frontend (ESLint)
+        run: npm --prefix frontend run lint
+
+      - name: Build frontend (Next.js)
+        run: npm --prefix frontend run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
