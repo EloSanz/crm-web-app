@@ -13,11 +13,11 @@ import {
   ArrowRight,
   HardHat,
   Sparkles,
-  Kanban,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Boxes
 } from 'lucide-react';
 import { HealthStatus } from '@/types/auth';
-import { fetchCompanies, fetchContacts } from '@/lib/api';
+import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities } from '@/lib/api';
 import { useCurrentUser } from '@/lib/useUser';
 
 export default function HomePage() {
@@ -26,6 +26,8 @@ export default function HomePage() {
   const [isHealthLoading, setIsHealthLoading] = useState(true);
   const [companiesCount, setCompaniesCount] = useState<number | null>(null);
   const [contactsCount, setContactsCount] = useState<number | null>(null);
+  const [productsCount, setProductsCount] = useState<number | null>(null);
+  const [opportunitiesCount, setOpportunitiesCount] = useState<number | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -59,6 +61,22 @@ export default function HomePage() {
         if (isMounted) setContactsCount(0);
       });
 
+    fetchProducts()
+      .then((data) => {
+        if (isMounted) setProductsCount(data.length);
+      })
+      .catch(() => {
+        if (isMounted) setProductsCount(0);
+      });
+
+    fetchOpportunities()
+      .then((data) => {
+        if (isMounted) setOpportunitiesCount(data.length);
+      })
+      .catch(() => {
+        if (isMounted) setOpportunitiesCount(0);
+      });
+
     return () => {
       isMounted = false;
     };
@@ -83,8 +101,22 @@ export default function HomePage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href="/companies"
+                href="/opportunities"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-xs transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Presupuestos (Cotizador)
+              </Link>
+              <Link
+                href="/catalog"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-colors"
+              >
+                <Boxes className="w-4 h-4" />
+                Catálogo de Materiales
+              </Link>
+              <Link
+                href="/companies"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-colors"
               >
                 <Building2 className="w-4 h-4" />
                 Empresas Contratistas
@@ -110,27 +142,78 @@ export default function HomePage() {
             <span className="text-xs font-semibold text-slate-500">Primera Entrega — UNLaM</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Tarjeta Presupuestos */}
+            <Link href="/opportunities" className="group">
+              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {opportunitiesCount !== null ? `${opportunitiesCount} presupuestos` : 'Cargando...'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
+                    Presupuestos de Obra
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Cotizaciones armadas con materiales del catálogo asociadas a contratistas o contactos.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+                  <span>Ir a presupuestos</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Card>
+            </Link>
+            {/* Tarjeta Catálogo de Materiales */}
+            <Link href="/catalog" className="group">
+              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                      <Boxes className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {productsCount !== null ? `${productsCount} materiales` : 'Cargando...'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
+                    Catálogo de Materiales
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Precios de referencia y rubros para obras: aglomerantes, hierros, áridos, mampostería y fletes.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+                  <span>Ver catálogo completo</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Card>
+            </Link>
+
             {/* Tarjeta Empresas */}
             <Link href="/companies" className="group">
               <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                       <Building2 className="w-5 h-5" />
                     </div>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                       {companiesCount !== null ? `${companiesCount} empresas` : 'Cargando...'}
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-indigo-600 transition-colors">
                     Empresas Contratistas
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     Constructoras, hormigoneras y desarrolladoras de obra. Gestión con baja lógica y estados comerciales.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
                   <span>Ir a empresas</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -142,51 +225,26 @@ export default function HomePage() {
               <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
                       <Users className="w-5 h-5" />
                     </div>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                       {contactsCount !== null ? `${contactsCount} contactos` : 'Cargando...'}
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-indigo-600 transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-purple-600 transition-colors">
                     Contactos de Obra
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Maestros mayores de obra, capataces y particulares. Vinculados a empresas contratistas o independientes.
+                    Maestros mayores de obra, capataces y particulares vinculados a empresas o compras directas.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-purple-600">
                   <span>Ir a contactos</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
               </Card>
             </Link>
-
-            {/* Tarjeta Embudo / Presupuestos (Próxima Feature) */}
-            <div className="opacity-80">
-              <Card className="p-5 h-full flex flex-col justify-between border-dashed bg-slate-50/50">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                      <Kanban className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      Próxima Feature
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-800 mt-4">
-                    Embudo de Presupuestos
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Cotización de materiales (hierro, cemento, áridos) agrupados por etapa con semáforo NSM de actividad reciente.
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center text-xs font-medium text-slate-400">
-                  <span>Feature 2 & 3 en roadmap</span>
-                </div>
-              </Card>
-            </div>
           </div>
         </div>
 

@@ -1,6 +1,14 @@
 export type CompanyStatus = 'potencial' | 'cliente' | 'inactivo' | 'no_contactar';
 export type ContactStatus = 'potencial' | 'cliente' | 'inactivo' | 'no_contactar';
 
+export type ProductCategory =
+  | 'Aglomerantes'
+  | 'Áridos'
+  | 'Hierros y Aceros'
+  | 'Mampostería'
+  | 'Techos e Hidráulica'
+  | 'Servicios';
+
 export interface Company {
   id: string;
   name: string;
@@ -36,10 +44,10 @@ export interface CompanyFormData {
 
 export interface Contact {
   id: string;
-  company_id?: string | null;
-  company_name?: string | null;
   first_name: string;
   last_name: string;
+  company_id?: string | null;
+  company_name?: string | null;
   document_number?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -56,9 +64,9 @@ export interface Contact {
 }
 
 export interface ContactFormData {
-  company_id?: string;
   first_name: string;
   last_name: string;
+  company_id?: string;
   document_number?: string;
   email?: string;
   phone?: string;
@@ -67,3 +75,97 @@ export interface ContactFormData {
   origin?: string;
   notes?: string;
 }
+
+export interface Product {
+  id: string;
+  code: string;
+  name: string;
+  category: ProductCategory;
+  unit: string;
+  unit_price: number;
+  description?: string | null;
+  is_active: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductFormData {
+  code: string;
+  name: string;
+  category: ProductCategory;
+  unit: string;
+  unit_price: number;
+  description?: string;
+  is_active: boolean;
+}
+
+export interface OpportunityItem {
+  id: string;
+  opportunity_id: string;
+  product_id?: string | null;
+  product_name: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at: string;
+}
+
+export interface Opportunity {
+  id: string;
+  title: string;
+  company_id?: string | null;
+  company_name?: string | null;
+  contact_id?: string | null;
+  contact_name?: string | null;
+  assigned_to: string;
+  assigned_to_name?: string | null;
+  stage_id: string;
+  stage_name?: string | null;
+  stage_slug?: string | null;
+  stage_color?: string | null;
+  status: 'abierta' | 'ganada' | 'perdida';
+  estimated_value: number;
+  currency: string;
+  expected_close_date?: string | null;
+  delivery_location?: string | null;
+  loss_reason?: string | null;
+  items: OpportunityItem[];
+  is_deleted: boolean;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Stage {
+  id: string;
+  name: string;
+  slug: string;
+  position: number;
+  is_closed_won: boolean;
+  is_closed_lost: boolean;
+  color: string;
+}
+
+export interface OpportunityItemCreateData {
+  product_id?: string | null;
+  product_name: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface OpportunityCreateData {
+  title: string;
+  company_id?: string | null;
+  contact_id?: string | null;
+  assigned_to: string;
+  stage_id: string;
+  status?: 'abierta' | 'ganada' | 'perdida';
+  currency?: string;
+  expected_close_date?: string | null;
+  delivery_location?: string | null;
+  items: OpportunityItemCreateData[];
+}
+

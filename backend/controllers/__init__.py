@@ -3,6 +3,8 @@ from backend.controllers import (
     company_controller,
     contact_controller,
     health_controller,
+    opportunity_controller,
+    product_controller,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "company_controller",
     "contact_controller",
     "health_controller",
+    "opportunity_controller",
+    "product_controller",
 ]

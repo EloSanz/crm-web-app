@@ -7,7 +7,9 @@ import {
   Building2, 
   Users, 
   Home, 
-  HardHat 
+  HardHat,
+  Boxes,
+  FileSpreadsheet
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -29,6 +31,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const navItems = [
     { label: 'Inicio', href: '/', icon: Home },
+    { label: 'Presupuestos', href: '/opportunities', icon: FileSpreadsheet },
+    { label: 'Catálogo de Materiales', href: '/catalog', icon: Boxes },
     { label: 'Empresas (Contratistas)', href: '/companies', icon: Building2 },
     { label: 'Contactos', href: '/contacts', icon: Users },
   ];

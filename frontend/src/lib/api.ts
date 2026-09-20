@@ -2,7 +2,12 @@ import {
   Company, 
   CompanyFormData, 
   Contact, 
-  ContactFormData 
+  ContactFormData,
+  Product,
+  ProductFormData,
+  Opportunity,
+  OpportunityCreateData,
+  Stage
 } from '@/types/crm';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -34,7 +39,7 @@ export async function fetchCompanies(params?: { q?: string; status?: string }): 
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('Error al obtener empresas');
+    throw new Error('Error al obtener empresas contratistas');
   }
   return res.json();
 }
@@ -165,3 +170,110 @@ export async function deleteContact(id: string): Promise<void> {
     throw new Error(err.detail || 'Error al dar de baja el contacto');
   }
 }
+
+// ---------------------------------------------------------------------------
+// CATÁLOGO DE MATERIALES (PRODUCTOS Y SERVICIOS)
+// ---------------------------------------------------------------------------
+
+export async function fetchProducts(params?: { category?: string; q?: string }): Promise<Product[]> {
+  const url = new URL(`${API_BASE_URL}/api/products`);
+  if (params?.category) url.searchParams.append('category', params.category);
+  if (params?.q) url.searchParams.append('q', params.q);
+
+  const res = await fetch(url.toString(), {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al obtener materiales del catálogo');
+  }
+  return res.json();
+}
+
+export async function createProduct(data: ProductFormData): Promise<Product> {
+  const res = await fetch(`${API_BASE_URL}/api/products`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al agregar material al catálogo');
+  }
+  return res.json();
+}
+
+export async function updateProduct(id: string, data: Partial<ProductFormData>): Promise<Product> {
+  const res = await fetch(`${API_BASE_URL}/api/products/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al modificar material');
+  }
+  return res.json();
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/products/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al dar de baja el material');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OPORTUNIDADES Y ETAPAS DEL EMBUDO
+// ---------------------------------------------------------------------------
+
+export async function fetchStages(): Promise<Stage[]> {
+  const res = await fetch(`${API_BASE_URL}/api/stages`, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al obtener etapas del embudo');
+  }
+  return res.json();
+}
+
+export async function fetchOpportunities(params?: { 
+  company_id?: string; 
+  contact_id?: string; 
+  stage_id?: string; 
+  q?: string 
+}): Promise<Opportunity[]> {
+  const url = new URL(`${API_BASE_URL}/api/opportunities`);
+  if (params?.company_id) url.searchParams.append('company_id', params.company_id);
+  if (params?.contact_id) url.searchParams.append('contact_id', params.contact_id);
+  if (params?.stage_id) url.searchParams.append('stage_id', params.stage_id);
+  if (params?.q) url.searchParams.append('q', params.q);
+
+  const res = await fetch(url.toString(), {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al obtener presupuestos');
+  }
+  return res.json();
+}
+
+export async function createOpportunity(data: OpportunityCreateData): Promise<Opportunity> {
+  const res = await fetch(`${API_BASE_URL}/api/opportunities`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al generar presupuesto');
+  }
+  return res.json();
+}
+
