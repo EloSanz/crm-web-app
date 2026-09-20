@@ -31,5 +31,12 @@ class Settings(BaseSettings):
     # Frontend URL (CORS)
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # AWS S3 Storage (Materiales de construcción, remitos y fotos de obra)
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-2"
+    AWS_BUCKET_NAME: str = "myawsbucketelito"
+    AWS_S3_CUSTOM_DOMAIN: str = ""
+
 
 settings = Settings()

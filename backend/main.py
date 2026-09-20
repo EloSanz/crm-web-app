@@ -9,6 +9,7 @@ from backend.controllers import (
     health_controller,
     opportunity_controller,
     product_controller,
+    upload_controller,
 )
 
 app = FastAPI(
@@ -41,6 +42,7 @@ app.include_router(contact_controller.router)
 app.include_router(product_controller.router)
 app.include_router(opportunity_controller.router)
 app.include_router(opportunity_controller.stages_router)
+app.include_router(upload_controller.router)
 
 if __name__ == "__main__":
     import uvicorn
