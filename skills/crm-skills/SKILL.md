@@ -140,6 +140,9 @@ tareas ni recordatorios.
 - **`references/convenciones-desarrollo.md`** — Arquitectura por capas, cómo
   implementar baja lógica / historial / permisos / hashing, y buenas prácticas
   independientes del stack. Leelo al escribir o revisar código.
+- **`skills/oportunidades-activas-nsm/SKILL.md`** — **Feature NSM del proyecto**:
+  definición, semáforo de salud comercial (últimos N días), cálculo del pipeline
+  activo y visualización comprobable en UI.
 
 ## Cómo ayudar en cada fase
 

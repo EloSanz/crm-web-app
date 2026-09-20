@@ -2,15 +2,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.controllers import auth_controller, health_controller
+from backend.controllers import (
+    auth_controller,
+    company_controller,
+    contact_controller,
+    health_controller,
+)
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API REST del Sistema CRM para Gestión Comercial - UNLaM GADS II",
     version=settings.APP_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
-# Configuración CORS para soportar frontend Next.js y orígenes locales
+# Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -29,8 +35,15 @@ app.add_middleware(
 # Registro de Controladores
 app.include_router(health_controller.router)
 app.include_router(auth_controller.router)
+app.include_router(company_controller.router)
+app.include_router(contact_controller.router)
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("backend.main:app", host=settings.HOST, port=settings.PORT, reload=True)
+    uvicorn.run(
+        "backend.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+    )

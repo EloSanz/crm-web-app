@@ -24,9 +24,14 @@ CREATE TABLE IF NOT EXISTS crm_companies (
     name VARCHAR(255) NOT NULL,
     cuit VARCHAR(20),
     industry VARCHAR(100),
-    website VARCHAR(255),
+    email VARCHAR(255),
     phone VARCHAR(50),
     address TEXT,
+    website VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'potencial' CHECK (status IN ('potencial', 'cliente', 'inactivo', 'no_contactar')),
+    origin VARCHAR(100),
+    notes TEXT,
+    assigned_to UUID REFERENCES crm_users(id),
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
     created_by UUID REFERENCES crm_users(id),
@@ -40,9 +45,14 @@ CREATE TABLE IF NOT EXISTS crm_contacts (
     company_id UUID REFERENCES crm_companies(id) ON DELETE SET NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    document_number VARCHAR(50),
     email VARCHAR(255),
     phone VARCHAR(50),
     job_title VARCHAR(100),
+    status VARCHAR(50) NOT NULL DEFAULT 'potencial' CHECK (status IN ('potencial', 'cliente', 'inactivo', 'no_contactar')),
+    origin VARCHAR(100),
+    notes TEXT,
+    assigned_to UUID REFERENCES crm_users(id),
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
     created_by UUID REFERENCES crm_users(id),
@@ -74,6 +84,7 @@ CREATE TABLE IF NOT EXISTS crm_opportunities (
     estimated_value NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     currency VARCHAR(10) NOT NULL DEFAULT 'ARS',
     expected_close_date DATE,
+    delivery_location TEXT,
     loss_reason TEXT,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
@@ -99,7 +110,7 @@ CREATE TABLE IF NOT EXISTS crm_activities (
     contact_id UUID REFERENCES crm_contacts(id) ON DELETE SET NULL,
     company_id UUID REFERENCES crm_companies(id) ON DELETE SET NULL,
     user_id UUID NOT NULL REFERENCES crm_users(id),
-    activity_type VARCHAR(50) NOT NULL CHECK (activity_type IN ('llamada', 'reunion', 'email', 'nota', 'tarea')),
+    activity_type VARCHAR(50) NOT NULL CHECK (activity_type IN ('llamada', 'whatsapp', 'reunion', 'visita_obra', 'mostrador', 'email', 'nota', 'presupuesto')),
     summary VARCHAR(255) NOT NULL,
     description TEXT,
     activity_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -110,19 +121,18 @@ CREATE TABLE IF NOT EXISTS crm_activities (
 -- DATOS SEMILLA (Seed Data Inicial)
 -- ==============================================================================
 
--- Etapas estándar del embudo comercial
+-- Etapas especializadas del embudo comercial del corralón
 INSERT INTO crm_stages (name, slug, position, is_closed_won, is_closed_lost, color)
 VALUES
-    ('Prospección', 'prospeccion', 1, false, false, '#94a3b8'),
-    ('Contacto Inicial', 'contacto-inicial', 2, false, false, '#38bdf8'),
-    ('Calificación', 'calificacion', 3, false, false, '#818cf8'),
-    ('Propuesta Comercial', 'propuesta', 4, false, false, '#fbbf24'),
-    ('Negociación', 'negociacion', 5, false, false, '#f97316'),
-    ('Cierre Ganado', 'cierre-ganado', 6, true, false, '#22c55e'),
-    ('Cierre Perdido', 'cierre-perdido', 7, false, true, '#ef4444')
+    ('Consulta Recibida', 'consulta-recibida', 1, false, false, '#38bdf8'),
+    ('Presupuesto en Preparación', 'presupuesto-preparacion', 2, false, false, '#818cf8'),
+    ('Presupuesto Enviado', 'presupuesto-enviado', 3, false, false, '#fbbf24'),
+    ('Negociación', 'negociacion', 4, false, false, '#f97316'),
+    ('Venta Concretada', 'venta-concretada', 5, true, false, '#22c55e'),
+    ('Perdida', 'perdida', 6, false, true, '#ef4444')
 ON CONFLICT (slug) DO NOTHING;
 
--- Usuario administrador inicial
+-- Usuario administrador y vendedor iniciales
 INSERT INTO crm_users (id, email, full_name, role, is_active)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'admin@crm.com', 'Administrador General', 'admin', true),
