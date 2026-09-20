@@ -75,15 +75,31 @@ def test_get_current_user_me_successful(client):
     assert data["role"] == "ejecutivo_ventas"
 
 
-def test_get_current_user_me_missing_header(client):
-    """Verifica rechazo 401 si falta el header Authorization."""
-    response = client.get("/api/auth/me")
+def test_api_key_required_without_header(raw_client):
+    """Verifica rechazo 403 si la petición carece del header X-API-Key."""
+    response = raw_client.get("/api/companies")
+    assert response.status_code == 403
+    assert "API Key" in response.json()["detail"]
+
+
+def test_get_current_user_me_missing_header(raw_client):
+    """Verifica rechazo 401 si se envía API Key pero falta el token Bearer."""
+    response = raw_client.get(
+        "/api/auth/me",
+        headers={"X-API-Key": "crm_live_corralon_secret_key_2026"},
+    )
     assert response.status_code == 401
-    assert "Header Authorization no provisto" in response.json()["detail"]
+    assert "Se requiere token de sesión Bearer" in response.json()["detail"]
 
 
-def test_get_current_user_me_invalid_token(client):
+def test_get_current_user_me_invalid_token(raw_client):
     """Verifica rechazo 401 con token corrupto o malformado."""
-    response = client.get("/api/auth/me", headers={"Authorization": "Bearer token_invalido_xyz"})
+    response = raw_client.get(
+        "/api/auth/me",
+        headers={
+            "X-API-Key": "crm_live_corralon_secret_key_2026",
+            "Authorization": "Bearer token_invalido_xyz",
+        },
+    )
     assert response.status_code == 401
-    assert "Token inválido o expirado" in response.json()["detail"]
+    assert "Sesión inválida o expirada" in response.json()["detail"]

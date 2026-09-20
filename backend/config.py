@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "dev-secret-key-change-in-production-1234567890"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    CRM_API_KEY: str = "crm_live_corralon_secret_key_2026"
 
     # Frontend URL (CORS)
     FRONTEND_URL: str = "http://localhost:3000"

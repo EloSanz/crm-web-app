@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
-import { buildApiUrl } from '@/lib/api';
+import { buildApiUrl, CRM_CLIENT_API_KEY } from '@/lib/api';
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,7 +23,10 @@ export function LoginForm() {
     try {
       const res = await fetch(buildApiUrl('/api/auth/login'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': CRM_CLIENT_API_KEY,
+        },
         body: JSON.stringify({ email, password }),
       });
 
