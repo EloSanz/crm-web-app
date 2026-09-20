@@ -69,6 +69,14 @@ Es el error conceptual más común en este TP. Mantenelos separados en el modelo
 - **Oportunidad**: una posibilidad concreta de venta/contratación. Un mismo
   contacto o empresa puede tener **varias** oportunidades a lo largo del tiempo.
 
+## Roles del proceso ≠ roles del CRM (otra distinción clave)
+
+Hay dos cosas que se llaman "roles" y no hay que mezclar. Los **roles del equipo /
+proceso** (Líder, Analista, Diseñador, Devs, QA, Soporte) organizan el desarrollo y
+**no** son entidades del sistema. Los **roles del CRM** (Administrador, Vendedor,
+Responsable comercial) **sí** se modelan y gobiernan los permisos. QA, por ejemplo,
+es rol de proceso, no un usuario del CRM (ver `ciclo-vida-negocio-procesos.md`).
+
 ## Orden obligatorio de desarrollo
 
 Seguí esta secuencia; está impuesta por la consigna y ordena las entregas:
@@ -121,6 +129,14 @@ tareas ni recordatorios.
   entrega.
 - **`references/especializacion.md`** — Cómo adaptar el CRM a una industria de
   forma real. Leelo cuando el grupo elija (o evalúe) una industria.
+- **`references/ciclo-vida-negocio-procesos.md`** — Decisiones ya tomadas de
+  **ciclo de vida (Incremental)**, **modelo de negocio (SaaS)** y **modelo de
+  procesos (MCVS)** con los roles del equipo. Leelo al justificar el proceso,
+  planificar incrementos o si aparece la distinción entre roles de proceso y roles
+  del CRM.
+- **`references/marketing-y-funnel.md`** — Buyer persona, propuesta de valor y
+  funnel de ventas del producto. Leelo para vocabulario/mensaje y para no prometer
+  cosas fuera de alcance (stock, WhatsApp).
 - **`references/convenciones-desarrollo.md`** — Arquitectura por capas, cómo
   implementar baja lógica / historial / permisos / hashing, y buenas prácticas
   independientes del stack. Leelo al escribir o revisar código.
@@ -130,11 +146,14 @@ tareas ni recordatorios.
 - **Analizar / diseñar**: partí de las entidades y reglas de las referencias. No
   inventes atributos que la consigna no pide salvo que aporten y lo aclares; no
   omitas los mínimos.
-- **Desarrollar**: el stack está decidido (Python + FastAPI + PostgreSQL +
-  Next.js; JWT + bcrypt; Docker). Aplicá las convenciones de
-  `convenciones-desarrollo.md` sobre ese stack (SQLAlchemy, Pydantic, dependencias
-  de FastAPI para permisos por rol). Priorizá que las reglas invariantes queden
-  implementadas de verdad (no solo en la UI).
+- **Desarrollar**: el stack está decidido (FastAPI + **Supabase** [Postgres + Auth]
+  + Next.js 16/React 19; `uv`; Docker/Vercel). El detalle y las implicancias de la
+  desviación a Supabase (autorización siempre en el backend porque el
+  `service_role` bypassea RLS; JWT verificado, no un token sin firmar) están en
+  `decisiones-del-proyecto.md`. Aplicá las convenciones de
+  `convenciones-desarrollo.md` (Pydantic, `supabase-py`, dependencias de FastAPI
+  para permisos por rol). Priorizá que las reglas invariantes queden implementadas
+  de verdad (no solo en la UI).
 - **Planificar**: usá el orden obligatorio y las dos entregas como columna
   vertebral.
 - **Revisar**: chequeá contra las reglas invariantes y el alcance. Señalá lo que
