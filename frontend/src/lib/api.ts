@@ -10,10 +10,39 @@ import {
   Stage
 } from '@/types/crm';
 
-const API_BASE_URL = 
-  process.env.NEXT_PUBLIC_API_URL !== undefined
-    ? process.env.NEXT_PUBLIC_API_URL
-    : (typeof window !== 'undefined' ? '' : 'http://localhost:8000');
+export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== '') {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // In the browser, an empty string uses relative URLs on the current origin (e.g. /api/...)
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  // In SSR fallback: if VERCEL_URL is present use https://${VERCEL_URL}, else localhost
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return 'http://127.0.0.1:8000';
+}
+
+export function buildApiUrl(endpoint: string, params?: Record<string, string | undefined | null>): string {
+  const base = getApiBaseUrl();
+  const cleanPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (!params) {
+    return `${base}${cleanPath}`;
+  }
+
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, value);
+    }
+  }
+
+  const qs = searchParams.toString();
+  return qs ? `${base}${cleanPath}?${qs}` : `${base}${cleanPath}`;
+}
 
 function getAuthHeaders(): HeadersInit {
   const headers: Record<string, string> = {
@@ -33,11 +62,8 @@ function getAuthHeaders(): HeadersInit {
 // ---------------------------------------------------------------------------
 
 export async function fetchCompanies(params?: { q?: string; status?: string }): Promise<Company[]> {
-  const url = new URL(`${API_BASE_URL}/api/companies`);
-  if (params?.q) url.searchParams.append('q', params.q);
-  if (params?.status) url.searchParams.append('status', params.status);
-
-  const res = await fetch(url.toString(), {
+  const url = buildApiUrl('/api/companies', params);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -48,7 +74,8 @@ export async function fetchCompanies(params?: { q?: string; status?: string }): 
 }
 
 export async function fetchCompany(id: string): Promise<Company> {
-  const res = await fetch(`${API_BASE_URL}/api/companies/${id}`, {
+  const url = buildApiUrl(`/api/companies/${id}`);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -59,7 +86,8 @@ export async function fetchCompany(id: string): Promise<Company> {
 }
 
 export async function createCompany(data: CompanyFormData): Promise<Company> {
-  const res = await fetch(`${API_BASE_URL}/api/companies`, {
+  const url = buildApiUrl('/api/companies');
+  const res = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -72,7 +100,8 @@ export async function createCompany(data: CompanyFormData): Promise<Company> {
 }
 
 export async function updateCompany(id: string, data: Partial<CompanyFormData>): Promise<Company> {
-  const res = await fetch(`${API_BASE_URL}/api/companies/${id}`, {
+  const url = buildApiUrl(`/api/companies/${id}`);
+  const res = await fetch(url, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -85,7 +114,8 @@ export async function updateCompany(id: string, data: Partial<CompanyFormData>):
 }
 
 export async function deleteCompany(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/companies/${id}`, {
+  const url = buildApiUrl(`/api/companies/${id}`);
+  const res = await fetch(url, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
@@ -96,7 +126,8 @@ export async function deleteCompany(id: string): Promise<void> {
 }
 
 export async function fetchCompanyContacts(companyId: string): Promise<Contact[]> {
-  const res = await fetch(`${API_BASE_URL}/api/companies/${companyId}/contacts`, {
+  const url = buildApiUrl(`/api/companies/${companyId}/contacts`);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -111,12 +142,8 @@ export async function fetchCompanyContacts(companyId: string): Promise<Contact[]
 // ---------------------------------------------------------------------------
 
 export async function fetchContacts(params?: { q?: string; status?: string; company_id?: string }): Promise<Contact[]> {
-  const url = new URL(`${API_BASE_URL}/api/contacts`);
-  if (params?.q) url.searchParams.append('q', params.q);
-  if (params?.status) url.searchParams.append('status', params.status);
-  if (params?.company_id) url.searchParams.append('company_id', params.company_id);
-
-  const res = await fetch(url.toString(), {
+  const url = buildApiUrl('/api/contacts', params);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -127,7 +154,8 @@ export async function fetchContacts(params?: { q?: string; status?: string; comp
 }
 
 export async function fetchContact(id: string): Promise<Contact> {
-  const res = await fetch(`${API_BASE_URL}/api/contacts/${id}`, {
+  const url = buildApiUrl(`/api/contacts/${id}`);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -138,7 +166,8 @@ export async function fetchContact(id: string): Promise<Contact> {
 }
 
 export async function createContact(data: ContactFormData): Promise<Contact> {
-  const res = await fetch(`${API_BASE_URL}/api/contacts`, {
+  const url = buildApiUrl('/api/contacts');
+  const res = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -151,7 +180,8 @@ export async function createContact(data: ContactFormData): Promise<Contact> {
 }
 
 export async function updateContact(id: string, data: Partial<ContactFormData>): Promise<Contact> {
-  const res = await fetch(`${API_BASE_URL}/api/contacts/${id}`, {
+  const url = buildApiUrl(`/api/contacts/${id}`);
+  const res = await fetch(url, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -164,7 +194,8 @@ export async function updateContact(id: string, data: Partial<ContactFormData>):
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/contacts/${id}`, {
+  const url = buildApiUrl(`/api/contacts/${id}`);
+  const res = await fetch(url, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
@@ -179,11 +210,8 @@ export async function deleteContact(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchProducts(params?: { category?: string; q?: string }): Promise<Product[]> {
-  const url = new URL(`${API_BASE_URL}/api/products`);
-  if (params?.category) url.searchParams.append('category', params.category);
-  if (params?.q) url.searchParams.append('q', params.q);
-
-  const res = await fetch(url.toString(), {
+  const url = buildApiUrl('/api/products', params);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -194,7 +222,8 @@ export async function fetchProducts(params?: { category?: string; q?: string }):
 }
 
 export async function createProduct(data: ProductFormData): Promise<Product> {
-  const res = await fetch(`${API_BASE_URL}/api/products`, {
+  const url = buildApiUrl('/api/products');
+  const res = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -207,7 +236,8 @@ export async function createProduct(data: ProductFormData): Promise<Product> {
 }
 
 export async function updateProduct(id: string, data: Partial<ProductFormData>): Promise<Product> {
-  const res = await fetch(`${API_BASE_URL}/api/products/${id}`, {
+  const url = buildApiUrl(`/api/products/${id}`);
+  const res = await fetch(url, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -220,7 +250,8 @@ export async function updateProduct(id: string, data: Partial<ProductFormData>):
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/products/${id}`, {
+  const url = buildApiUrl(`/api/products/${id}`);
+  const res = await fetch(url, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
@@ -235,7 +266,8 @@ export async function deleteProduct(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchStages(): Promise<Stage[]> {
-  const res = await fetch(`${API_BASE_URL}/api/stages`, {
+  const url = buildApiUrl('/api/stages');
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -251,13 +283,8 @@ export async function fetchOpportunities(params?: {
   stage_id?: string; 
   q?: string 
 }): Promise<Opportunity[]> {
-  const url = new URL(`${API_BASE_URL}/api/opportunities`);
-  if (params?.company_id) url.searchParams.append('company_id', params.company_id);
-  if (params?.contact_id) url.searchParams.append('contact_id', params.contact_id);
-  if (params?.stage_id) url.searchParams.append('stage_id', params.stage_id);
-  if (params?.q) url.searchParams.append('q', params.q);
-
-  const res = await fetch(url.toString(), {
+  const url = buildApiUrl('/api/opportunities', params);
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
   });
@@ -268,7 +295,8 @@ export async function fetchOpportunities(params?: {
 }
 
 export async function createOpportunity(data: OpportunityCreateData): Promise<Opportunity> {
-  const res = await fetch(`${API_BASE_URL}/api/opportunities`, {
+  const url = buildApiUrl('/api/opportunities');
+  const res = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),

@@ -42,6 +42,10 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: "placeholder-publishable-key"
           SUPABASE_SECRET_KEY: "placeholder-secret-key"
           JWT_SECRET_KEY: "ci-secret-jwt-key"
+          AWS_ACCESS_KEY_ID: "mock-key-id"
+          AWS_SECRET_ACCESS_KEY: "mock-secret"
+          AWS_DEFAULT_REGION: "us-east-1"
+          AWS_S3_BUCKET_NAME: "mock-bucket"
         run: uv run pytest
 
   frontend-ci:

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { buildApiUrl } from '@/lib/api';
 
 export function LoginForm() {
   const router = useRouter();
@@ -19,10 +20,8 @@ export function LoginForm() {
     setError(null);
     setIsLoading(true);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
     try {
-      const res = await fetch(`${apiUrl}/api/auth/login`, {
+      const res = await fetch(buildApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

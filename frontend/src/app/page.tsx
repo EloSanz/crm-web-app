@@ -17,7 +17,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { HealthStatus } from '@/types/auth';
-import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities } from '@/lib/api';
+import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities, buildApiUrl } from '@/lib/api';
 import { useCurrentUser } from '@/lib/useUser';
 
 export default function HomePage() {
@@ -29,15 +29,10 @@ export default function HomePage() {
   const [productsCount, setProductsCount] = useState<number | null>(null);
   const [opportunitiesCount, setOpportunitiesCount] = useState<number | null>(null);
 
-  const apiUrl = 
-    process.env.NEXT_PUBLIC_API_URL !== undefined
-      ? process.env.NEXT_PUBLIC_API_URL
-      : (typeof window !== 'undefined' ? '' : 'http://localhost:8000');
-
   useEffect(() => {
     let isMounted = true;
 
-    fetch(`${apiUrl}/api/health`)
+    fetch(buildApiUrl('/api/health'))
       .then((res) => res.json())
       .then((data: HealthStatus) => {
         if (isMounted) setHealth(data);
@@ -83,7 +78,7 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
-  }, [apiUrl]);
+  }, []);
 
   return (
     <AppLayout>
