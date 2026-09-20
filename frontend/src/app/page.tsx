@@ -29,12 +29,15 @@ export default function HomePage() {
   const [productsCount, setProductsCount] = useState<number | null>(null);
   const [opportunitiesCount, setOpportunitiesCount] = useState<number | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const apiUrl = 
+    process.env.NEXT_PUBLIC_API_URL !== undefined
+      ? process.env.NEXT_PUBLIC_API_URL
+      : (typeof window !== 'undefined' ? '' : 'http://localhost:8000');
 
   useEffect(() => {
     let isMounted = true;
 
-    fetch(`${apiUrl}/health`)
+    fetch(`${apiUrl}/api/health`)
       .then((res) => res.json())
       .then((data: HealthStatus) => {
         if (isMounted) setHealth(data);

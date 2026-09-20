@@ -10,7 +10,10 @@ import {
   Stage
 } from '@/types/crm';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = 
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : (typeof window !== 'undefined' ? '' : 'http://localhost:8000');
 
 function getAuthHeaders(): HeadersInit {
   const headers: Record<string, string> = {

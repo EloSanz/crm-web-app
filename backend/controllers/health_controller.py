@@ -13,6 +13,11 @@ router = APIRouter(tags=["Health"])
     response_model=HealthCheckResponse,
     summary="Health check general de la API",
 )
+@router.get(
+    "/api/health",
+    response_model=HealthCheckResponse,
+    include_in_schema=False,
+)
 async def health_check() -> HealthCheckResponse:
     """Retorna el estado de operatividad del backend y versión de la API."""
     return HealthCheckResponse(
