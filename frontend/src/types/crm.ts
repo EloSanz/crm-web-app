@@ -209,4 +209,20 @@ export interface OpportunityCreateData {
   items: OpportunityItemCreateData[];
 }
 
+export interface OpportunityUpdateData {
+  title?: string;
+  company_id?: string | null;
+  contact_id?: string | null;
+  project_id?: string | null;
+  assigned_to?: string;
+  stage_id?: string;
+  status?: 'abierta' | 'ganada' | 'perdida';
+  estimated_value?: number;
+  expected_close_date?: string | null;
+  delivery_location?: string | null;
+  loss_reason?: string | null;
+  items?: OpportunityItemCreateData[];
+}
+
+
 

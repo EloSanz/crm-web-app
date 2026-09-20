@@ -9,6 +9,7 @@ import {
   ProjectFormData,
   Opportunity,
   OpportunityCreateData,
+  OpportunityUpdateData,
   Stage
 } from '@/types/crm';
 
@@ -309,6 +310,33 @@ export async function createOpportunity(data: OpportunityCreateData): Promise<Op
   }
   return res.json();
 }
+
+export async function updateOpportunity(id: string, data: OpportunityUpdateData): Promise<Opportunity> {
+  const url = buildApiUrl(`/api/opportunities/${id}`);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al actualizar el presupuesto');
+  }
+  return res.json();
+}
+
+export async function deleteOpportunity(id: string): Promise<void> {
+  const url = buildApiUrl(`/api/opportunities/${id}`);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al eliminar el presupuesto');
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // OBRAS Y PROYECTOS (LOCACIONES DE ENTREGA)
