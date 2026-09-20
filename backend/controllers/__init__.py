@@ -5,6 +5,7 @@ from backend.controllers import (
     health_controller,
     opportunity_controller,
     product_controller,
+    project_controller,
     upload_controller,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "health_controller",
     "opportunity_controller",
     "product_controller",
+    "project_controller",
     "upload_controller",
 ]

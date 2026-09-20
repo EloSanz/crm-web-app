@@ -5,6 +5,8 @@ import {
   ContactFormData,
   Product,
   ProductFormData,
+  Project,
+  ProjectFormData,
   Opportunity,
   OpportunityCreateData,
   Stage
@@ -307,4 +309,79 @@ export async function createOpportunity(data: OpportunityCreateData): Promise<Op
   }
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// OBRAS Y PROYECTOS (LOCACIONES DE ENTREGA)
+// ---------------------------------------------------------------------------
+
+export async function fetchProjects(params?: {
+  company_id?: string;
+  contact_id?: string;
+  status?: string;
+  project_type?: string;
+  q?: string;
+}): Promise<Project[]> {
+  const url = buildApiUrl('/api/projects', params);
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al obtener obras y proyectos');
+  }
+  return res.json();
+}
+
+export async function fetchProject(id: string): Promise<Project> {
+  const url = buildApiUrl(`/api/projects/${id}`);
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al obtener detalle de la obra');
+  }
+  return res.json();
+}
+
+export async function createProject(data: ProjectFormData): Promise<Project> {
+  const url = buildApiUrl('/api/projects');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al registrar la obra');
+  }
+  return res.json();
+}
+
+export async function updateProject(id: string, data: Partial<ProjectFormData>): Promise<Project> {
+  const url = buildApiUrl(`/api/projects/${id}`);
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al actualizar la obra');
+  }
+  return res.json();
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const url = buildApiUrl(`/api/projects/${id}`);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al dar de baja la obra');
+  }
+}
+
 

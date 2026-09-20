@@ -41,6 +41,7 @@ class OpportunityBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=255, description="Título o descripción del presupuesto")
     company_id: UUID | None = Field(None, description="Empresa contratista vinculada")
     contact_id: UUID | None = Field(None, description="Contacto o maestro de obra vinculado")
+    project_id: UUID | None = Field(None, description="Obra o locación vinculada")
     assigned_to: UUID = Field(..., description="ID del ejecutivo de ventas responsable")
     stage_id: UUID = Field(..., description="ID de la etapa en el embudo comercial")
     status: OpportunityStatus = Field(default=OpportunityStatus.ABIERTA, description="Estado de la oportunidad")
@@ -55,6 +56,7 @@ class OpportunityCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
     company_id: UUID | None = None
     contact_id: UUID | None = None
+    project_id: UUID | None = None
     assigned_to: UUID
     stage_id: UUID
     status: OpportunityStatus = OpportunityStatus.ABIERTA
@@ -69,6 +71,7 @@ class OpportunityUpdate(BaseModel):
     title: str | None = Field(None, min_length=2, max_length=255)
     company_id: UUID | None = None
     contact_id: UUID | None = None
+    project_id: UUID | None = None
     assigned_to: UUID | None = None
     stage_id: UUID | None = None
     status: OpportunityStatus | None = None
@@ -83,6 +86,7 @@ class OpportunityResponse(OpportunityBase):
     id: UUID
     company_name: str | None = None
     contact_name: str | None = None
+    project_name: str | None = None
     assigned_to_name: str | None = None
     stage_name: str | None = None
     stage_slug: str | None = None

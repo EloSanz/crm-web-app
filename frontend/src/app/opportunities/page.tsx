@@ -8,6 +8,7 @@ import {
   Company, 
   Contact, 
   Product, 
+  Project,
   OpportunityCreateData, 
   OpportunityItemCreateData 
 } from '@/types/crm';
@@ -17,7 +18,8 @@ import {
   fetchStages, 
   fetchCompanies, 
   fetchContacts, 
-  fetchProducts 
+  fetchProducts,
+  fetchProjects 
 } from '@/lib/api';
 import { useCurrentUser } from '@/lib/useUser';
 import { 
@@ -54,6 +56,7 @@ export default function OpportunitiesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   // UI states
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +75,7 @@ export default function OpportunitiesPage() {
   const [clientType, setClientType] = useState<'company' | 'contact'>('company');
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedContactId, setSelectedContactId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [formStageId, setFormStageId] = useState('');
   
@@ -86,18 +90,20 @@ export default function OpportunitiesPage() {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const [oppsData, stagesData, compsData, contsData, prodsData] = await Promise.all([
+      const [oppsData, stagesData, compsData, contsData, prodsData, projsData] = await Promise.all([
         fetchOpportunities(),
         fetchStages(),
         fetchCompanies(),
         fetchContacts(),
         fetchProducts(),
+        fetchProjects(),
       ]);
       setOpportunities(oppsData);
       setStages(stagesData);
       setCompanies(compsData);
       setContacts(contsData);
       setProducts(prodsData);
+      setProjects(projsData);
       if (stagesData.length > 0 && !formStageId) {
         setFormStageId(stagesData[0].id);
       }
@@ -116,14 +122,16 @@ export default function OpportunitiesPage() {
       fetchCompanies(),
       fetchContacts(),
       fetchProducts(),
+      fetchProjects(),
     ])
-      .then(([oppsData, stagesData, compsData, contsData, prodsData]) => {
+      .then(([oppsData, stagesData, compsData, contsData, prodsData, projsData]) => {
         if (!isMounted) return;
         setOpportunities(oppsData);
         setStages(stagesData);
         setCompanies(compsData);
         setContacts(contsData);
         setProducts(prodsData);
+        setProjects(projsData);
         if (stagesData.length > 0) {
           setFormStageId(stagesData[0].id);
         }
@@ -221,6 +229,7 @@ export default function OpportunitiesPage() {
         title: formTitle.trim(),
         company_id: clientType === 'company' ? selectedCompanyId : undefined,
         contact_id: clientType === 'contact' ? selectedContactId : undefined,
+        project_id: selectedProjectId || undefined,
         assigned_to: currentUser?.id || '00000000-0000-0000-0000-000000000001',
         stage_id: formStageId || (stages[0]?.id ?? ''),
         status: 'abierta',
@@ -232,6 +241,7 @@ export default function OpportunitiesPage() {
       await createOpportunity(payload);
       setSuccessMsg('¡Presupuesto comercial creado y registrado con éxito!');
       setIsCreateModalOpen(false);
+      setSelectedProjectId('');
       await loadData();
       setTimeout(() => setSuccessMsg(null), 3500);
     } catch (err: unknown) {
@@ -385,7 +395,14 @@ export default function OpportunitiesPage() {
                         </div>
                       ) : null}
 
-                      {opp.delivery_location && (
+                      {opp.project_name && (
+                        <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50/60 px-2 py-0.5 rounded-md border border-emerald-100">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">Obra: {opp.project_name}</span>
+                        </div>
+                      )}
+
+                      {opp.delivery_location && !opp.project_name && (
                         <div className="flex items-center gap-1.5 text-slate-500">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span className="truncate">{opp.delivery_location}</span>
@@ -511,6 +528,47 @@ export default function OpportunitiesPage() {
                       </select>
                     )}
                   </div>
+                </div>
+
+                {/* Selección de Obra / Proyecto (Opcional pero recomendado para el corralón) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold uppercase text-slate-500">
+                      Vincular a Obra / Proyecto (Opcional)
+                    </label>
+                    <span className="text-xs text-blue-600 font-medium">Autocompleta dirección de descarga</span>
+                  </div>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => {
+                      const pId = e.target.value;
+                      setSelectedProjectId(pId);
+                      if (pId) {
+                        const proj = projects.find((p) => p.id === pId);
+                        if (proj) {
+                          setDeliveryLocation(proj.address);
+                        }
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">-- Sin vincular a obra específica --</option>
+                    {projects
+                      .filter((p) => {
+                        if (clientType === 'company' && selectedCompanyId) {
+                          return p.company_id === selectedCompanyId;
+                        }
+                        if (clientType === 'contact' && selectedContactId) {
+                          return p.contact_id === selectedContactId;
+                        }
+                        return true;
+                      })
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {p.address} ({p.status})
+                        </option>
+                      ))}
+                  </select>
                 </div>
 
                 {/* Destino de entrega y Etapa */}

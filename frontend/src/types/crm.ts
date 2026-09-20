@@ -119,6 +119,8 @@ export interface Opportunity {
   company_name?: string | null;
   contact_id?: string | null;
   contact_name?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
   assigned_to: string;
   assigned_to_name?: string | null;
   stage_id: string;
@@ -136,6 +138,43 @@ export interface Opportunity {
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type ProjectType =
+  | 'vivienda_unifamiliar'
+  | 'edificio_multifamiliar'
+  | 'comercial_industrial'
+  | 'refaccion'
+  | 'obra_publica';
+
+export type ProjectStatus = 'planificacion' | 'en_curso' | 'frenada' | 'finalizada';
+
+export interface Project {
+  id: string;
+  name: string;
+  company_id?: string | null;
+  company_name?: string | null;
+  contact_id?: string | null;
+  contact_name?: string | null;
+  address: string;
+  project_type: ProjectType;
+  status: ProjectStatus;
+  observations?: string | null;
+  opportunities_count?: number;
+  is_deleted: boolean;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectFormData {
+  name: string;
+  company_id?: string | null;
+  contact_id?: string | null;
+  address: string;
+  project_type: ProjectType;
+  status: ProjectStatus;
+  observations?: string | null;
 }
 
 export interface Stage {
@@ -160,6 +199,7 @@ export interface OpportunityCreateData {
   title: string;
   company_id?: string | null;
   contact_id?: string | null;
+  project_id?: string | null;
   assigned_to: string;
   stage_id: string;
   status?: 'abierta' | 'ganada' | 'perdida';
@@ -168,4 +208,5 @@ export interface OpportunityCreateData {
   delivery_location?: string | null;
   items: OpportunityItemCreateData[];
 }
+
 

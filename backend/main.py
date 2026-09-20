@@ -9,6 +9,7 @@ from backend.controllers import (
     health_controller,
     opportunity_controller,
     product_controller,
+    project_controller,
     upload_controller,
 )
 
@@ -39,6 +40,7 @@ app.include_router(health_controller.router)
 app.include_router(auth_controller.router)
 app.include_router(company_controller.router)
 app.include_router(contact_controller.router)
+app.include_router(project_controller.router)
 app.include_router(product_controller.router)
 app.include_router(opportunity_controller.router)
 app.include_router(opportunity_controller.stages_router)

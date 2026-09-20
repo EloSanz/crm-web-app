@@ -46,6 +46,18 @@ class OpportunityService:
             except Exception:
                 data["contact_name"] = None
 
+        # Obra / Proyecto
+        if data.get("project_id"):
+            try:
+                from backend.services.project_service import ProjectService
+
+                proj = ProjectService.get_project_by_id(UUID(str(data["project_id"])))
+                data["project_name"] = proj.name
+            except Exception:
+                data["project_name"] = None
+        else:
+            data["project_name"] = None
+
         # Items
         if opp_id in _mock_items:
             data["items"] = [OpportunityItemResponse(**it) for it in _mock_items[opp_id]]
@@ -207,6 +219,7 @@ class OpportunityService:
             "title": data.title.strip(),
             "company_id": str(data.company_id) if data.company_id else None,
             "contact_id": str(data.contact_id) if data.contact_id else None,
+            "project_id": str(data.project_id) if data.project_id else None,
             "assigned_to": str(data.assigned_to),
             "stage_id": str(data.stage_id),
             "status": data.status.value,
@@ -267,7 +280,7 @@ class OpportunityService:
 
         if "status" in update_payload and isinstance(update_payload["status"], OpportunityStatus):
             update_payload["status"] = update_payload["status"].value
-        for field in ["company_id", "contact_id", "assigned_to", "stage_id"]:
+        for field in ["company_id", "contact_id", "project_id", "assigned_to", "stage_id"]:
             if field in update_payload and update_payload[field] is not None:
                 update_payload[field] = str(update_payload[field])
         if "expected_close_date" in update_payload and update_payload["expected_close_date"]:

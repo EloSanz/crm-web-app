@@ -14,10 +14,11 @@ import {
   HardHat,
   Sparkles,
   FileSpreadsheet,
-  Boxes
+  Boxes,
+  MapPin
 } from 'lucide-react';
 import { HealthStatus } from '@/types/auth';
-import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities, buildApiUrl } from '@/lib/api';
+import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities, fetchProjects, buildApiUrl } from '@/lib/api';
 import { useCurrentUser } from '@/lib/useUser';
 
 export default function HomePage() {
@@ -28,6 +29,7 @@ export default function HomePage() {
   const [contactsCount, setContactsCount] = useState<number | null>(null);
   const [productsCount, setProductsCount] = useState<number | null>(null);
   const [opportunitiesCount, setOpportunitiesCount] = useState<number | null>(null);
+  const [projectsCount, setProjectsCount] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,6 +77,14 @@ export default function HomePage() {
         if (isMounted) setOpportunitiesCount(0);
       });
 
+    fetchProjects()
+      .then((data) => {
+        if (isMounted) setProjectsCount(data.length);
+      })
+      .catch(() => {
+        if (isMounted) setProjectsCount(0);
+      });
+
     return () => {
       isMounted = false;
     };
@@ -104,6 +114,13 @@ export default function HomePage() {
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Presupuestos (Cotizador)
+              </Link>
+              <Link
+                href="/projects"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow-xs transition-colors"
+              >
+                <MapPin className="w-4 h-4" />
+                Obras y Locaciones
               </Link>
               <Link
                 href="/catalog"
@@ -140,7 +157,7 @@ export default function HomePage() {
             <span className="text-xs font-semibold text-slate-500">Primera Entrega — UNLaM</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Tarjeta Presupuestos */}
             <Link href="/opportunities" className="group">
               <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
@@ -157,7 +174,7 @@ export default function HomePage() {
                     Presupuestos de Obra
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Cotizaciones armadas con materiales del catálogo asociadas a contratistas o contactos.
+                    Cotizaciones armadas con materiales del catálogo asociadas a contratistas u obras.
                   </p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
@@ -166,6 +183,33 @@ export default function HomePage() {
                 </div>
               </Card>
             </Link>
+
+            {/* Tarjeta Obras y Proyectos */}
+            <Link href="/projects" className="group">
+              <Card className="p-5 hover:border-emerald-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {projectsCount !== null ? `${projectsCount} obras` : 'Cargando...'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-emerald-600 transition-colors">
+                    Obras y Locaciones
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Locaciones físicas de entrega para contratistas. Gestión de estados operativos y fletes.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
+                  <span>Ver obras activas</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Card>
+            </Link>
+
             {/* Tarjeta Catálogo de Materiales */}
             <Link href="/catalog" className="group">
               <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">

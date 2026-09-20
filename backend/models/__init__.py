@@ -16,6 +16,13 @@ from backend.models.product import (
     ProductResponse,
     ProductUpdate,
 )
+from backend.models.project import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectStatus,
+    ProjectType,
+    ProjectUpdate,
+)
 
 __all__ = [
     "LoginRequest",
@@ -40,4 +47,9 @@ __all__ = [
     "OpportunityCreate",
     "OpportunityUpdate",
     "OpportunityResponse",
+    "ProjectType",
+    "ProjectStatus",
+    "ProjectCreate",
+    "ProjectUpdate",
+    "ProjectResponse",
 ]
