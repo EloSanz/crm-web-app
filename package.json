@@ -20,8 +20,8 @@
     "lint": "npm run lint:frontend && npm run lint:backend",
     "lint:frontend": "npm --prefix frontend run lint",
     "lint:backend": "uv run ruff check",
-    "format:backend": "uv run ruff format",
     "test:backend": "uv run pytest",
+    "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "uv run uvicorn backend.main:app --reload --port 8000"
   }
