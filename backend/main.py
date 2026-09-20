@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.controllers import (
+    activity_controller,
     auth_controller,
     company_controller,
     contact_controller,
@@ -111,6 +112,7 @@ app.include_router(product_controller.router)
 app.include_router(opportunity_controller.router)
 app.include_router(opportunity_controller.stages_router)
 app.include_router(upload_controller.router)
+app.include_router(activity_controller.router)
 
 
 if __name__ == "__main__":

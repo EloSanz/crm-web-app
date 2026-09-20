@@ -72,6 +72,77 @@ class OpportunityService:
             except Exception:
                 data["items"] = []
 
+        # North Star Metric (NSM): Actividad comercial reciente y semáforo de salud
+        last_act_dt = None
+        try:
+            client = get_supabase_client()
+            act_res = (
+                client.table("crm_activities")
+                .select("activity_date")
+                .eq("opportunity_id", opp_id)
+                .order("activity_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if act_res.data and len(act_res.data) > 0:
+                dt_str = act_res.data[0]["activity_date"]
+                last_act_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+        # Si no hay actividades en DB, verificar mock o usar fecha de creación del presupuesto
+        if not last_act_dt:
+            from backend.services.activity_service import _mock_activities
+
+            opp_acts = [
+                datetime.fromisoformat(a["activity_date"].replace("Z", "+00:00"))
+                for a in _mock_activities.values()
+                if str(a.get("opportunity_id")) == opp_id
+            ]
+            if opp_acts:
+                last_act_dt = max(opp_acts)
+
+        if last_act_dt:
+            if last_act_dt.tzinfo is None:
+                last_act_dt = last_act_dt.replace(tzinfo=timezone.utc)
+            data["last_activity_at"] = last_act_dt
+            now = datetime.now(timezone.utc)
+            delta = now - last_act_dt
+            days = max(0, delta.days)
+            data["days_since_last_activity"] = days
+            if days <= 7:
+                data["health_status"] = "healthy"
+            elif days <= 14:
+                data["health_status"] = "warning"
+            else:
+                data["health_status"] = "stale"
+        else:
+            # Si no tiene actividad cargada todavía, calcular días desde created_at
+            created_at_raw = data.get("created_at")
+            if created_at_raw:
+                try:
+                    if isinstance(created_at_raw, str):
+                        c_dt = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+                    else:
+                        c_dt = created_at_raw
+                    now = datetime.now(timezone.utc)
+                    if c_dt.tzinfo is None:
+                        c_dt = c_dt.replace(tzinfo=timezone.utc)
+                    days = max(0, (now - c_dt).days)
+                    data["days_since_last_activity"] = days
+                    if days <= 7:
+                        data["health_status"] = "healthy"
+                    elif days <= 14:
+                        data["health_status"] = "warning"
+                    else:
+                        data["health_status"] = "stale"
+                except Exception:
+                    data["days_since_last_activity"] = None
+                    data["health_status"] = "stale"
+            else:
+                data["days_since_last_activity"] = None
+                data["health_status"] = "stale"
+
         return data
 
     @classmethod
@@ -346,3 +417,39 @@ class OpportunityService:
         if str(opp_id) in _mock_opportunities:
             _mock_opportunities[str(opp_id)].update(soft_delete_payload)
         return True
+
+    @classmethod
+    def get_active_pipeline_metric(cls, window_days: int = 7) -> dict:
+        """
+        Calcula la North Star Metric (NSM):
+        Monto total ($) y cantidad (#) de Oportunidades Abiertas con Actividad en los últimos N días.
+        """
+        open_opps = cls.get_opportunities(status_filter=OpportunityStatus.ABIERTA, limit=500)
+        total_open = len(open_opps)
+
+        active_count = 0
+        active_amount = 0.0
+        stale_count = 0
+        stale_amount = 0.0
+
+        for opp in open_opps:
+            val = float(opp.estimated_value or 0)
+            days = opp.days_since_last_activity
+            if days is not None and days <= window_days:
+                active_count += 1
+                active_amount += val
+            else:
+                stale_count += 1
+                stale_amount += val
+
+        health_ratio = round(active_count / total_open, 4) if total_open > 0 else 1.0
+
+        return {
+            "window_days": window_days,
+            "total_open_opportunities": total_open,
+            "active_opportunities_count": active_count,
+            "active_opportunities_amount": active_amount,
+            "pipeline_health_ratio": health_ratio,
+            "stale_opportunities_count": stale_count,
+            "stale_opportunities_amount": stale_amount,
+        }

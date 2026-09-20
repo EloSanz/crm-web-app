@@ -11,7 +11,11 @@ import {
   Project,
   OpportunityCreateData, 
   OpportunityItemCreateData,
-  OpportunityUpdateData
+  OpportunityUpdateData,
+  Activity,
+  ActivityType,
+  ActivityFormData,
+  ActivePipelineMetric
 } from '@/types/crm';
 import { 
   fetchOpportunities, 
@@ -21,7 +25,10 @@ import {
   fetchCompanies, 
   fetchContacts, 
   fetchProducts,
-  fetchProjects 
+  fetchProjects,
+  fetchOpportunityActivities,
+  createActivity,
+  fetchActivePipelineMetric
 } from '@/lib/api';
 import { useCurrentUser } from '@/lib/useUser';
 import { 
@@ -46,7 +53,17 @@ import {
   Trophy,
   XCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Phone,
+  MessageSquare,
+  Users,
+  Store,
+  Mail,
+  FileText,
+  Activity as ActivityIcon,
+  ShieldAlert,
+  Flame,
+  Filter
 } from 'lucide-react';
 
 function formatARS(amount: number) {
@@ -78,12 +95,14 @@ export default function OpportunitiesPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [nsmMetric, setNsmMetric] = useState<ActivePipelineMetric | null>(null);
 
   // UI states
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageId, setSelectedStageId] = useState<string>('all');
+  const [healthFilter, setHealthFilter] = useState<'all' | 'healthy' | 'warning' | 'stale'>('all');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -95,6 +114,15 @@ export default function OpportunitiesPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewingOpportunity, setViewingOpportunity] = useState<Opportunity | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Activities Drawer / Modal State
+  const [activityOpp, setActivityOpp] = useState<Opportunity | null>(null);
+  const [activitiesList, setActivitiesList] = useState<Activity[]>([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const [newActivityType, setNewActivityType] = useState<ActivityType>('llamada');
+  const [newActivitySummary, setNewActivitySummary] = useState('');
+  const [newActivityDesc, setNewActivityDesc] = useState('');
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
 
   // Transition Modals
   const [winModalOpp, setWinModalOpp] = useState<Opportunity | null>(null);
@@ -125,13 +153,14 @@ export default function OpportunitiesPage() {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const [oppsData, stagesData, compsData, contsData, prodsData, projsData] = await Promise.all([
+      const [oppsData, stagesData, compsData, contsData, prodsData, projsData, nsmData] = await Promise.all([
         fetchOpportunities(),
         fetchStages(),
         fetchCompanies(),
         fetchContacts(),
         fetchProducts(),
         fetchProjects(),
+        fetchActivePipelineMetric(7).catch(() => null),
       ]);
       setOpportunities(oppsData);
       setStages(stagesData);
@@ -139,6 +168,7 @@ export default function OpportunitiesPage() {
       setContacts(contsData);
       setProducts(prodsData);
       setProjects(projsData);
+      if (nsmData) setNsmMetric(nsmData);
       if (stagesData.length > 0 && !formStageId) {
         setFormStageId(stagesData[0].id);
       }
@@ -158,8 +188,9 @@ export default function OpportunitiesPage() {
       fetchContacts(),
       fetchProducts(),
       fetchProjects(),
+      fetchActivePipelineMetric(7).catch(() => null),
     ])
-      .then(([oppsData, stagesData, compsData, contsData, prodsData, projsData]) => {
+      .then(([oppsData, stagesData, compsData, contsData, prodsData, projsData, nsmData]) => {
         if (!isMounted) return;
         setOpportunities(oppsData);
         setStages(stagesData);
@@ -167,6 +198,7 @@ export default function OpportunitiesPage() {
         setContacts(contsData);
         setProducts(prodsData);
         setProjects(projsData);
+        if (nsmData) setNsmMetric(nsmData);
         if (stagesData.length > 0) {
           setFormStageId(stagesData[0].id);
         }
@@ -193,9 +225,10 @@ export default function OpportunitiesPage() {
         (opp.contact_name && opp.contact_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesStage = selectedStageId === 'all' || opp.stage_id === selectedStageId;
-      return matchesSearch && matchesStage;
+      const matchesHealth = healthFilter === 'all' || opp.health_status === healthFilter;
+      return matchesSearch && matchesStage && matchesHealth;
     });
-  }, [opportunities, searchQuery, selectedStageId]);
+  }, [opportunities, searchQuery, selectedStageId, healthFilter]);
 
   // Stage sorted by position
   const sortedStages = useMemo(() => {
@@ -210,6 +243,10 @@ export default function OpportunitiesPage() {
     
     const openTotal = openOpps.reduce((acc, o) => acc + Number(o.estimated_value || 0), 0);
     const wonTotal = wonOpps.reduce((acc, o) => acc + Number(o.estimated_value || 0), 0);
+
+    const healthyCount = openOpps.filter((o) => o.health_status === 'healthy').length;
+    const warningCount = openOpps.filter((o) => o.health_status === 'warning').length;
+    const staleCount = openOpps.filter((o) => o.health_status === 'stale').length;
     
     return {
       openCount: openOpps.length,
@@ -217,6 +254,9 @@ export default function OpportunitiesPage() {
       wonCount: wonOpps.length,
       wonTotal,
       lostCount: lostOpps.length,
+      healthyCount,
+      warningCount,
+      staleCount,
     };
   }, [opportunities]);
 
@@ -310,7 +350,57 @@ export default function OpportunitiesPage() {
     }
   };
 
-  // Stage transition initiator (used by Drag & Drop and Action Buttons)
+  // Open Activities Timeline
+  const handleOpenActivities = async (opp: Opportunity) => {
+    setActivityOpp(opp);
+    setNewActivitySummary('');
+    setNewActivityDesc('');
+    setNewActivityType('llamada');
+    setIsLoadingActivities(true);
+    try {
+      const acts = await fetchOpportunityActivities(opp.id);
+      setActivitiesList(acts);
+    } catch {
+      setActivitiesList([]);
+    } finally {
+      setIsLoadingActivities(false);
+    }
+  };
+
+  const handleSaveActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activityOpp) return;
+    if (!newActivitySummary.trim()) {
+      setErrorMsg('Debes ingresar un resumen de la actividad.');
+      return;
+    }
+
+    setIsSavingActivity(true);
+    try {
+      const payload: ActivityFormData = {
+        opportunity_id: activityOpp.id,
+        company_id: activityOpp.company_id || undefined,
+        contact_id: activityOpp.contact_id || undefined,
+        activity_type: newActivityType,
+        summary: newActivitySummary.trim(),
+        description: newActivityDesc.trim() || undefined,
+      };
+      await createActivity(payload);
+      setSuccessMsg('¡Actividad registrada! Se actualizó la salud comercial de la oportunidad.');
+      setNewActivitySummary('');
+      setNewActivityDesc('');
+      const updatedActs = await fetchOpportunityActivities(activityOpp.id);
+      setActivitiesList(updatedActs);
+      await loadData();
+      setTimeout(() => setSuccessMsg(null), 3500);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Error al guardar la actividad');
+    } finally {
+      setIsSavingActivity(false);
+    }
+  };
+
+  // Stage transition initiator
   const triggerStageChange = (opp: Opportunity, targetStage: Stage) => {
     if (opp.stage_id === targetStage.id) return;
 
@@ -414,10 +504,29 @@ export default function OpportunitiesPage() {
     }
   };
 
+  const getActivityIcon = (type: ActivityType) => {
+    switch (type) {
+      case 'llamada':
+        return <Phone className="w-3.5 h-3.5 text-blue-600" />;
+      case 'whatsapp':
+        return <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />;
+      case 'visita_obra':
+        return <MapPin className="w-3.5 h-3.5 text-purple-600" />;
+      case 'mostrador':
+        return <Store className="w-3.5 h-3.5 text-amber-600" />;
+      case 'email':
+        return <Mail className="w-3.5 h-3.5 text-sky-600" />;
+      case 'reunion':
+        return <Users className="w-3.5 h-3.5 text-indigo-600" />;
+      default:
+        return <FileText className="w-3.5 h-3.5 text-slate-600" />;
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Encabezado y Métricas */}
+        {/* Encabezado y Selector de Vistas */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -425,11 +534,11 @@ export default function OpportunitiesPage() {
                 <FileSpreadsheet className="w-6 h-6" />
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Tablero Comercial de Presupuestos
+                Tablero Comercial y Oportunidades Activas
               </h1>
             </div>
             <p className="text-sm text-slate-600 mt-1">
-              Pipeline interactivo de cotizaciones para corralón: seguimiento de etapas, materiales y cierre de ventas.
+              Embudo comercial de corralón con North Star Metric (NSM): seguimiento en tiempo real y semáforo de actividad.
             </p>
           </div>
 
@@ -444,7 +553,6 @@ export default function OpportunitiesPage() {
                     ? 'bg-white text-blue-700 shadow-xs' 
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="Ver embudo en columnas Kanban"
               >
                 <Kanban className="w-3.5 h-3.5" />
                 Tablero Kanban
@@ -457,7 +565,6 @@ export default function OpportunitiesPage() {
                     ? 'bg-white text-blue-700 shadow-xs' 
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="Ver lista resumida de cotizaciones"
               >
                 <List className="w-3.5 h-3.5" />
                 Vista Lista
@@ -474,39 +581,82 @@ export default function OpportunitiesPage() {
           </div>
         </div>
 
-        {/* Resumen de KPI del Embudo */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">En Negociación Activa</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{formatARS(pipelineMetrics.openTotal)}</p>
-              <span className="text-xs text-slate-500 font-medium">{pipelineMetrics.openCount} presupuestos abiertos</span>
+        {/* WIDGET NORTH STAR METRIC (NSM): PIPELINE ACTIVO REAL */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Tarjeta NSM 1: Pipeline Activo Real */}
+          <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-4 rounded-2xl border border-emerald-300 shadow-xs relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                <Flame className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                Pipeline Activo Real (NSM ≤ 7d)
+              </span>
+              <span className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-100 text-emerald-800 rounded-md">
+                {nsmMetric ? `${Math.round(nsmMetric.pipeline_health_ratio * 100)}% sano` : 'Al día'}
+              </span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Clock className="w-5 h-5" />
-            </div>
+            <p className="text-xl font-black text-emerald-950 mt-1.5">
+              {formatARS(nsmMetric ? nsmMetric.active_opportunities_amount : pipelineMetrics.openTotal)}
+            </p>
+            <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+              {nsmMetric ? nsmMetric.active_opportunities_count : pipelineMetrics.healthyCount} presupuestos con contacto reciente
+            </p>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-2xs flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Ventas Concretadas</span>
-              <p className="text-xl font-black text-emerald-700 mt-0.5">{formatARS(pipelineMetrics.wonTotal)}</p>
-              <span className="text-xs text-emerald-600 font-medium">{pipelineMetrics.wonCount} obras cerradas ganadas</span>
+          {/* Tarjeta NSM 2: En Riesgo o Fríos */}
+          <div className="bg-white p-4 rounded-2xl border border-amber-200/80 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                Requieren Contacto
+              </span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-md">
+                {pipelineMetrics.warningCount + pipelineMetrics.staleCount} sin atención
+              </span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Trophy className="w-5 h-5" />
-            </div>
+            <p className="text-xl font-black text-slate-900 mt-1.5">
+              {formatARS(nsmMetric ? nsmMetric.stale_opportunities_amount : 0)}
+            </p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              Cotizaciones de materiales sin seguimiento en &gt; 7 días
+            </p>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Presupuestos Perdidos</span>
-              <p className="text-xl font-black text-slate-700 mt-0.5">{pipelineMetrics.lostCount}</p>
-              <span className="text-xs text-slate-500 font-medium">Con motivo analítico registrado</span>
+          {/* Tarjeta 3: Ventas Concretadas */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Trophy className="w-3.5 h-3.5 text-blue-600" />
+                Ventas Concretadas
+              </span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded-md">
+                {pipelineMetrics.wonCount} cerradas
+              </span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
-              <XCircle className="w-5 h-5" />
+            <p className="text-xl font-black text-slate-900 mt-1.5">
+              {formatARS(pipelineMetrics.wonTotal)}
+            </p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              Monto final acordado ingresado al corralón
+            </p>
+          </div>
+
+          {/* Tarjeta 4: Total en Negociación */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                Total Oportunidades Abiertas
+              </span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-md">
+                {pipelineMetrics.openCount} totales
+              </span>
             </div>
+            <p className="text-xl font-black text-slate-900 mt-1.5">
+              {formatARS(pipelineMetrics.openTotal)}
+            </p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              Suma global de presupuestos en proceso
+            </p>
           </div>
         </div>
 
@@ -524,8 +674,8 @@ export default function OpportunitiesPage() {
           </div>
         )}
 
-        {/* Filtro y Búsqueda */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Barra de Búsqueda y Filtro de Semáforo Comercial NSM */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -533,37 +683,69 @@ export default function OpportunitiesPage() {
               placeholder="Buscar por título, empresa contratista, contacto o destino de entrega..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
 
-          {viewMode === 'list' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-              <button
-                onClick={() => setSelectedStageId('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedStageId === 'all'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Todas ({opportunities.length})
-              </button>
-              {stages.map((stg) => (
-                <button
-                  key={stg.id}
-                  onClick={() => setSelectedStageId(stg.id)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    selectedStageId === stg.id
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {stg.name} ({opportunities.filter((o) => o.stage_id === stg.id).length})
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Filtro por Semáforo de Actividad (NSM) */}
+          <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+            <span className="text-[10px] font-bold text-slate-500 px-1 flex items-center gap-1">
+              <Filter className="w-3 h-3" /> Salud:
+            </span>
+            <button
+              type="button"
+              onClick={() => setHealthFilter('all')}
+              className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+                healthFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => setHealthFilter('healthy')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+                healthFilter === 'healthy' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              Al día (≤7d)
+            </button>
+            <button
+              type="button"
+              onClick={() => setHealthFilter('warning')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+                healthFilter === 'warning' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-700 hover:bg-amber-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              En riesgo (8-14d)
+            </button>
+            <button
+              type="button"
+              onClick={() => setHealthFilter('stale')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+                healthFilter === 'stale' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-400" />
+              Estancadas (&gt;14d)
+            </button>
+          </div>
+
+          {/* Filtro por Etapa */}
+          <select
+            value={selectedStageId}
+            onChange={(e) => setSelectedStageId(e.target.value)}
+            className="px-2.5 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          >
+            <option value="all">Todas las etapas</option>
+            {stages.map((stg) => (
+              <option key={stg.id} value={stg.id}>
+                {stg.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Contenido: Tablero Kanban o Lista */}
@@ -573,7 +755,7 @@ export default function OpportunitiesPage() {
             <p className="text-sm font-semibold">Cargando tablero y presupuestos de obra...</p>
           </div>
         ) : viewMode === 'kanban' ? (
-          /* TABLERO KANBAN DE 6 ETAPAS */
+          /* TABLERO KANBAN DE 6 ETAPAS CON SEMÁFORO NSM */
           <div className="overflow-x-auto pb-4 pt-1">
             <div className="inline-flex gap-4 min-w-[1240px] items-start">
               {sortedStages.map((stg, stgIdx) => {
@@ -642,6 +824,31 @@ export default function OpportunitiesPage() {
                       ) : (
                         stageOpps.map((opp) => {
                           const isDragging = draggingOppId === opp.id;
+                          const daysSince = opp.days_since_last_activity ?? 0;
+                          
+                          // Semáforo NSM badge
+                          let healthBadge = (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Al día ({daysSince}d)
+                            </span>
+                          );
+                          if (opp.health_status === 'warning') {
+                            healthBadge = (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                En riesgo ({daysSince}d)
+                              </span>
+                            );
+                          } else if (opp.health_status === 'stale') {
+                            healthBadge = (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                Estancada ({daysSince > 0 ? `${daysSince}d` : 'sin seg.'})
+                              </span>
+                            );
+                          }
+
                           return (
                             <div
                               key={opp.id}
@@ -694,8 +901,23 @@ export default function OpportunitiesPage() {
                                 )}
                               </div>
 
+                              {/* Semáforo NSM de Seguimiento */}
+                              {opp.status === 'abierta' && (
+                                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                  {healthBadge}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenActivities(opp)}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+                                  >
+                                    <ActivityIcon className="w-3 h-3" />
+                                    Bitácora
+                                  </button>
+                                </div>
+                              )}
+
                               {/* Monto Total Presupuestado */}
-                              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                                 <div>
                                   <span className="text-[9px] uppercase font-bold text-slate-400">Total Cotizado</span>
                                   <p className="text-xs font-black text-slate-900">
@@ -790,7 +1012,7 @@ export default function OpportunitiesPage() {
             <div className="py-16 text-center text-slate-500 flex flex-col items-center gap-2 bg-white rounded-2xl border border-slate-200">
               <FileSpreadsheet className="w-10 h-10 text-slate-300" />
               <p className="font-semibold text-slate-700">No se encontraron presupuestos</p>
-              <p className="text-xs text-slate-400">Intenta con otro término de búsqueda o registra una cotización nueva.</p>
+              <p className="text-xs text-slate-400">Intenta con otro término de búsqueda o cambia el filtro de salud.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -810,9 +1032,18 @@ export default function OpportunitiesPage() {
                         >
                           {opp.stage_name || 'En negociación'}
                         </span>
-                        <span className="text-[11px] font-bold text-slate-400">
-                          {opp.items.length} {opp.items.length === 1 ? 'material' : 'materiales'}
-                        </span>
+                        
+                        {opp.status === 'abierta' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                            opp.health_status === 'healthy' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : opp.health_status === 'warning' 
+                              ? 'bg-amber-100 text-amber-800' 
+                              : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {opp.health_status === 'healthy' ? '🟢 Al día' : opp.health_status === 'warning' ? '🟡 En riesgo' : '🔴 Estancada'}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="font-bold text-slate-900 text-base mt-2.5 leading-snug">
@@ -840,13 +1071,6 @@ export default function OpportunitiesPage() {
                           </div>
                         )}
 
-                        {opp.delivery_location && !opp.project_name && (
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{opp.delivery_location}</span>
-                          </div>
-                        )}
-
                         {opp.loss_reason && (
                           <div className="text-[11px] font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
                             Motivo de pérdida: {opp.loss_reason}
@@ -865,21 +1089,14 @@ export default function OpportunitiesPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {/* Selector de cambio de etapa directo */}
-                        <select
-                          value={opp.stage_id}
-                          onChange={(e) => {
-                            const newStage = stages.find((s) => s.id === e.target.value);
-                            if (newStage) triggerStageChange(opp, newStage);
-                          }}
-                          className="px-2 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 font-medium"
+                        <button
+                          type="button"
+                          onClick={() => handleOpenActivities(opp)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                         >
-                          {stages.map((stg) => (
-                            <option key={stg.id} value={stg.id}>
-                              {stg.name}
-                            </option>
-                          ))}
-                        </select>
+                          <ActivityIcon className="w-3.5 h-3.5" />
+                          Seguimiento
+                        </button>
 
                         <button
                           onClick={() => setViewingOpportunity(opp)}
@@ -895,6 +1112,150 @@ export default function OpportunitiesPage() {
               })}
             </div>
           )
+        )}
+
+        {/* MODAL: Bitácora de Actividades y Seguimiento Comercial (NSM) */}
+        {activityOpp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                    <ActivityIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Bitácora de Seguimiento Comercial</h2>
+                    <p className="text-xs text-slate-500 truncate max-w-sm">{activityOpp.title}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActivityOpp(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-4 space-y-4">
+                {/* Formulario para registrar nuevo hecho comercial */}
+                <form onSubmit={handleSaveActivity} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    + Registrar Nueva Interacción
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Tipo de Actividad</label>
+                      <select
+                        value={newActivityType}
+                        onChange={(e) => setNewActivityType(e.target.value as ActivityType)}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white"
+                      >
+                        <option value="llamada">Llamada telefónica</option>
+                        <option value="whatsapp">WhatsApp / Mensaje</option>
+                        <option value="visita_obra">Visita a la obra</option>
+                        <option value="mostrador">Atención en mostrador</option>
+                        <option value="email">Correo electrónico</option>
+                        <option value="reunion">Reunión con cliente</option>
+                        <option value="nota">Nota interna de avance</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Resumen del Hecho *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. Confirmó inicio de losa"
+                        value={newActivitySummary}
+                        onChange={(e) => setNewActivitySummary(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Detalle / Resultado (Opcional)</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Ej. Solicitó 150 bolsas de cemento Loma Negra y flete el viernes a primera hora."
+                      value={newActivityDesc}
+                      onChange={(e) => setNewActivityDesc(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isSavingActivity}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      {isSavingActivity ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      Registrar Actividad
+                    </button>
+                  </div>
+                </form>
+
+                {/* Línea de tiempo cronológica inversa */}
+                <div>
+                  <h3 className="text-xs font-black uppercase text-slate-700 mb-3 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    Historial de Interacciones ({activitiesList.length})
+                  </h3>
+
+                  {isLoadingActivities ? (
+                    <div className="py-8 text-center text-slate-400 text-xs flex flex-col items-center gap-1.5">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      Cargando bitácora de seguimiento...
+                    </div>
+                  ) : activitiesList.length === 0 ? (
+                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400">
+                      No hay actividades registradas todavía. Registra la primera arriba para actualizar el semáforo.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-200">
+                      {activitiesList.map((act) => (
+                        <div key={act.id} className="relative flex items-start gap-3 pl-1">
+                          <div className="w-7 h-7 rounded-full bg-white border border-slate-200 shadow-2xs flex items-center justify-center shrink-0 z-10">
+                            {getActivityIcon(act.activity_type)}
+                          </div>
+                          <div className="flex-1 bg-slate-50/80 rounded-xl p-3 border border-slate-200 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{act.summary}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {new Date(act.activity_date).toLocaleDateString('es-AR', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            {act.description && (
+                              <p className="mt-1 text-slate-600 leading-relaxed">{act.description}</p>
+                            )}
+                            <div className="mt-2 text-[10px] text-slate-400">
+                              Registrado por: <span className="font-semibold text-slate-600">{act.user_name || 'Vendedor'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setActivityOpp(null)}
+                  className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* MODAL: Transición a Venta Concretada (Ganada) */}

@@ -92,6 +92,10 @@ class OpportunityResponse(OpportunityBase):
     stage_slug: str | None = None
     stage_color: str | None = None
     items: list[OpportunityItemResponse] = Field(default_factory=list)
+    # North Star Metric (NSM) - Semáforo comercial de actividad reciente
+    last_activity_at: datetime | None = None
+    days_since_last_activity: int | None = None
+    health_status: str = "stale"  # "healthy" (<=7d) | "warning" (8-14d) | "stale" (>14d o sin actividad)
     is_deleted: bool = False
     deleted_at: datetime | None = None
     created_at: datetime

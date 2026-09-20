@@ -134,11 +134,60 @@ export interface Opportunity {
   delivery_location?: string | null;
   loss_reason?: string | null;
   items: OpportunityItem[];
+  // North Star Metric (NSM)
+  last_activity_at?: string | null;
+  days_since_last_activity?: number | null;
+  health_status?: 'healthy' | 'warning' | 'stale';
   is_deleted: boolean;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type ActivityType = 
+  | 'llamada' 
+  | 'whatsapp' 
+  | 'reunion' 
+  | 'visita_obra' 
+  | 'mostrador' 
+  | 'email' 
+  | 'nota' 
+  | 'presupuesto';
+
+export interface Activity {
+  id: string;
+  opportunity_id?: string | null;
+  contact_id?: string | null;
+  company_id?: string | null;
+  user_id: string;
+  user_name?: string | null;
+  activity_type: ActivityType;
+  summary: string;
+  description?: string | null;
+  activity_date: string;
+  created_at: string;
+}
+
+export interface ActivityFormData {
+  opportunity_id?: string | null;
+  contact_id?: string | null;
+  company_id?: string | null;
+  activity_type: ActivityType;
+  summary: string;
+  description?: string | null;
+  activity_date?: string;
+}
+
+export interface ActivePipelineMetric {
+  window_days: number;
+  total_open_opportunities: number;
+  active_opportunities_count: number;
+  active_opportunities_amount: number;
+  pipeline_health_ratio: number;
+  stale_opportunities_count: number;
+  stale_opportunities_amount: number;
+}
+
 
 export type ProjectType =
   | 'vivienda_unifamiliar'

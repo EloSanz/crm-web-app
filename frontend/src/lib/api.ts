@@ -10,7 +10,10 @@ import {
   Opportunity,
   OpportunityCreateData,
   OpportunityUpdateData,
-  Stage
+  Stage,
+  Activity,
+  ActivityFormData,
+  ActivePipelineMetric
 } from '@/types/crm';
 
 export function getApiBaseUrl(): string {
@@ -434,5 +437,48 @@ export async function deleteProject(id: string): Promise<void> {
     throw new Error(err.detail || 'Error al dar de baja la obra');
   }
 }
+
+// ---------------------------------------------------------------------------
+// ACTIVIDADES COMERCIALES Y NORTH STAR METRIC (NSM)
+// ---------------------------------------------------------------------------
+
+export async function fetchOpportunityActivities(opportunityId: string): Promise<Activity[]> {
+  const url = buildApiUrl(`/api/opportunities/${opportunityId}/activities`);
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al cargar la bitácora de actividades');
+  }
+  return res.json();
+}
+
+export async function createActivity(data: ActivityFormData): Promise<Activity> {
+  const url = buildApiUrl('/api/activities');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al registrar la actividad comercial');
+  }
+  return res.json();
+}
+
+export async function fetchActivePipelineMetric(days: number = 7): Promise<ActivePipelineMetric> {
+  const url = buildApiUrl('/api/metrics/active-pipeline', { days: String(days) });
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('Error al consultar métrica de pipeline activo');
+  }
+  return res.json();
+}
+
 
 
