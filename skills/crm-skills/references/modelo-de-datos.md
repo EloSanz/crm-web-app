@@ -68,22 +68,33 @@ una empresa o actuar como **cliente individual** (sin empresa). Datos mínimos:
 Como mínimo: **Potencial, Cliente, Inactivo, No contactar**. La baja se hace
 cambiando el estado (baja lógica), nunca eliminando el registro.
 
+## Obra / Proyecto (Especialización Corralón)
+
+Proyecto o lugar físico donde se entregan los materiales. Permite agrupar los presupuestos por locación.
+
+- Nombre / Identificación (ej. "Edificio Rivadavia 1200", "Casa Lote 45")
+- Dirección / Ubicación de entrega
+- Cliente asociado (empresa o contacto)
+- Tipo de obra (opcional: Vivienda, Edificio, Refacción, etc.)
+- Estado (opcional: En curso, Finalizada, Pausada)
+- Observaciones
+
 ## Producto o servicio
 
-Aquello que la organización ofrece comercialmente (un sistema, un seguro, una
-propiedad, una capacitación, un tratamiento, un servicio profesional…). Un mismo
+Aquello que la organización ofrece comercialmente (materiales de construcción: cemento, áridos, hierros, etc.). Un mismo
 producto/servicio puede aparecer en varias oportunidades.
 
 - En la primera entrega pueden estar **precargados**.
-- En un CRM genérico, su gestión debe ser configurable.
+- No controla stock (fuera de alcance).
 
 ## Oportunidad
 
-Posibilidad concreta de venta o contratación. Es la entidad central del proceso
+Presupuesto de materiales. Posibilidad concreta de venta o contratación. Es la entidad central del proceso
 comercial. Datos mínimos:
 
-- Título
+- Título / Descripción
 - Empresa o contacto relacionado (al menos uno)
+- Obra / Proyecto relacionado (opcional, si aplica a una locación puntual)
 - Responsable comercial
 - Producto o servicio
 - Valor estimado (si corresponde)

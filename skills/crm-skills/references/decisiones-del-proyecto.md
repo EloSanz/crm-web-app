@@ -19,13 +19,10 @@ referencia, mandan estas decisiones.
 
 ## Concepto central
 
-- **Una oportunidad = un presupuesto de materiales para una obra puntual.**
-- Se incorpora la entidad propia **Obra / Proyecto**.
+- **Una oportunidad = un presupuesto de materiales para una obra puntual o compra directa.**
+- Se incorpora la entidad propia **Obra / Proyecto** (opcional, para obras con entregas en locación).
 - Cadena del negocio:
-  **Cliente (contratista) → tiene varias Obras → cada Obra tiene varios
-  Presupuestos (oportunidades).**
-- Un presupuesto **siempre** cuelga de una obra; una obra **siempre** pertenece a
-  un cliente (empresa o contacto).
+  **Cliente (contratista) → tiene Obras asociadas → Presupuestos (oportunidades) vinculados a la Obra o directo al Cliente.**
 
 ### Entidad Obra / Proyecto
 
@@ -75,8 +72,8 @@ extras.
 
 ## Reglas de negocio propias (además de las de la consigna)
 
-- Un presupuesto (oportunidad) siempre pertenece a una obra.
-- Una obra siempre pertenece a un cliente (empresa o contacto).
+- Un presupuesto (oportunidad) pertenece a un cliente (empresa o contacto) y opcionalmente a una obra puntual.
+- Toda obra pertenece a un cliente (empresa o contacto).
 - La venta concretada registra el valor final del presupuesto.
 
 ## Stack técnico
