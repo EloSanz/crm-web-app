@@ -84,7 +84,7 @@ export function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <Input
-            label="Correo Electrónico"
+            label="Correo"
             type="email"
             required
             placeholder="admin@crm.com"

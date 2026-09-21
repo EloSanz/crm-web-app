@@ -450,7 +450,7 @@ export default function CompaniesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Correo Electrónico
+                    Correo
                   </label>
                   <input
                     type="email"

@@ -320,7 +320,7 @@ export default function ContactsPage() {
                     <th className="py-3 px-4">Contacto / Cargo</th>
                     <th className="py-3 px-4">Empresa Vinculada</th>
                     <th className="py-3 px-4">Teléfono Directo</th>
-                    <th className="py-3 px-4">Correo Electrónico</th>
+                    <th className="py-3 px-4">Correo</th>
                     <th className="py-3 px-4">Estado</th>
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
@@ -508,7 +508,7 @@ export default function ContactsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Correo Electrónico
+                    Correo
                   </label>
                   <input
                     type="email"
