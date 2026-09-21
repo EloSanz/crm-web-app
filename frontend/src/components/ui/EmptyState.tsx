@@ -1,5 +1,6 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LogoLoader } from '@/components/brand/LogoLoader';
 import { ILLUSTRATIONS, type IllustrationName } from '@/components/brand/Illustrations';
 
 interface EmptyStateProps {
@@ -23,13 +24,10 @@ export function EmptyState({ title, description, action, className, illustration
   );
 }
 
-export function LoadingBlock({ label, rows = 3, className }: { label: string; rows?: number; className?: string }) {
+export function LoadingBlock({ label, className }: { label: string; rows?: number; className?: string }) {
   return (
-    <div className={clsx('grid gap-3', className)} role="status" aria-live="polite">
-      <span className="sr-only">{label}</span>
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="h-20 rounded-xl bg-chapa/70 animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
-      ))}
+    <div className={clsx('flex min-h-[40vh] items-center justify-center', className)}>
+      <LogoLoader label={label} showLabel />
     </div>
   );
 }

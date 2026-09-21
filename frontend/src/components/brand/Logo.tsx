@@ -32,14 +32,17 @@ function brick(x: number, y: number, w: number, h: number, tl = R, tr = R, br = 
   );
 }
 
-/** Hilada de arriba (largo + corto), alma de la C, hilada de abajo (juntas corridas respecto de la de arriba). */
-export const MARK_PATH = [
+/** Los cinco ladrillos por separado (los usa el loader para llenarlos de a uno). */
+export const MARK_BRICKS = [
   brick(LO, Y[0], 38 - LO, H, CURVE, R, R, 0),
   brick(38 + GAP, Y[0], HI - 38 - GAP, H),
   brick(LO, Y[1], H, H),
   brick(LO, Y[2], 30 - LO, H, 0, R, R, CURVE),
   brick(30 + GAP, Y[2], HI - 30 - GAP, H),
-].join('');
+];
+
+/** Hilada de arriba (largo + corto), alma de la C, hilada de abajo (juntas corridas respecto de la de arriba). */
+export const MARK_PATH = MARK_BRICKS.join('');
 
 export const PLATE_RADIUS = 12;
 

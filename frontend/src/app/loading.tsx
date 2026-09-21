@@ -1,12 +1,9 @@
-import { LogoMark } from '@/components/brand/Logo';
+import { LogoLoader } from '@/components/brand/LogoLoader';
 
 export default function Loading() {
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-suelo" role="status" aria-live="polite">
-      <div className="flex flex-col items-center gap-4">
-        <LogoMark className="w-14 h-14 animate-pulse" />
-        <p className="text-[15px] font-semibold text-tiza">Cargando Corralap…</p>
-      </div>
+    <div className="min-h-dvh flex items-center justify-center bg-suelo">
+      <LogoLoader className="h-20 w-20" label="Cargando Corralap…" showLabel />
     </div>
   );
 }

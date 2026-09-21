@@ -11,7 +11,11 @@ import { LostDialog, WinDialog } from './CloseDialogs';
  * Mover un presupuesto de etapa. Pasar a "Venta concretada" pide el valor final;
  * pasar a "Perdida" pide el motivo. El resto se guarda directo.
  */
-export function useStageTransitions(reload: () => Promise<void> | void) {
+export function useStageTransitions(
+  reload: () => Promise<void> | void,
+  /** Refleja el cambio en pantalla al instante, antes de que responda el servidor. */
+  applyLocal?: (oppId: string, update: OpportunityUpdateData) => void
+) {
   const toast = useToast();
   const [winOpp, setWinOpp] = useState<{ opp: Opportunity; stageId: string } | null>(null);
   const [lostOpp, setLostOpp] = useState<{ opp: Opportunity; stageId: string } | null>(null);
@@ -19,12 +23,16 @@ export function useStageTransitions(reload: () => Promise<void> | void) {
 
   const run = async (oppId: string, update: OpportunityUpdateData, title: string, message?: string) => {
     setSubmitting(true);
+    applyLocal?.(oppId, update);
+    setWinOpp(null);
+    setLostOpp(null);
     try {
       await updateOpportunity(oppId, update);
       toast.success(title, message);
       await reload();
     } catch (err) {
       toast.error('No se pudo mover el presupuesto', err instanceof Error ? err.message : undefined);
+      await reload(); // deshace el movimiento optimista
     } finally {
       setSubmitting(false);
       setWinOpp(null);

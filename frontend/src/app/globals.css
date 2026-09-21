@@ -53,6 +53,7 @@
   --animate-aparecer: aparecer 180ms ease-out both;
   --animate-subir: subir 260ms var(--ease-salida) both;
   --animate-desplegar: desplegar 160ms var(--ease-salida) both;
+  --animate-ladrillo: ladrillo 1.5s ease-in-out infinite both;
 
   @keyframes aparecer {
     from {
@@ -70,6 +71,18 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+  @keyframes ladrillo {
+    0% {
+      opacity: 0.12;
+    }
+    18%,
+    72% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.12;
     }
   }
   @keyframes desplegar {

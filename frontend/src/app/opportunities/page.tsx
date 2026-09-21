@@ -32,8 +32,25 @@ const EMPTY_OPPS: Opportunity[] = [];
 const EMPTY_STAGES: Stage[] = [];
 
 export default function OpportunitiesPage() {
-  const { data, error, loading, reload } = useLoad(load);
-  const { moveTo, dialogs } = useStageTransitions(reload);
+  const { data, error, loading, reload, setData } = useLoad(load);
+  const { moveTo, dialogs } = useStageTransitions(reload, (oppId, update) =>
+    setData((prev) => {
+      if (!prev) return prev;
+      const st = prev.stages.find((s) => s.id === update.stage_id);
+      return {
+        ...prev,
+        opportunities: prev.opportunities.map((o) =>
+          o.id === oppId
+            ? {
+                ...o,
+                ...update,
+                ...(st ? { stage_name: st.name, stage_slug: st.slug, stage_color: st.color } : {}),
+              } as Opportunity
+            : o
+        ),
+      };
+    })
+  );
   const [view, setView] = useState<'tablero' | 'lista'>('tablero');
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('all');
