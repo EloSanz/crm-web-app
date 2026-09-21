@@ -1,21 +1,192 @@
 @import "tailwindcss";
 
+/*
+ * Corralap · sistema de diseño
+ * Marca: amarillo vial sobre pavonado (gris acero casi negro), como la cartelería de obra.
+ * El amarillo es de la marca y de la acción principal; nunca informa estado.
+ * Semáforo de tres pinturas que sólo habla de salud: verde al día, naranja en riesgo, rojo frío.
+ * Tipografía Montserrat, geométrica, diseñada en Buenos Aires.
+ */
+@theme {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+
+  --color-pavonado: #16212b;
+  --color-pavonado-2: #1f2e3c;
+  --color-pavonado-3: #2c3f51;
+  --color-pavonado-borde: #34495c;
+  --color-niebla: #a9b8c2;
+
+  --color-amarillo: #ffc20e;
+  --color-amarillo-2: #f2b400;
+  --color-amarillo-tinta: #7a5500;
+  --color-amarillo-velo: #fff3c4;
+
+  --color-suelo: #eceeed;
+  --color-chapa: #ffffff;
+  --color-chapa-2: #f4f6f5;
+  --color-linea: #dce1df;
+  --color-linea-fuerte: #bfc7c4;
+  --color-tinta: #16212b;
+  --color-tiza: #5a666f;
+
+  --color-verde: #1b8049;
+  --color-verde-tinta: #146337;
+  --color-verde-claro: #3dbe74;
+  --color-verde-velo: #e4f3ea;
+
+  /* "ámbar" del semáforo: naranja de señalización, separado del amarillo de marca. */
+  --color-ambar: #e8830c;
+  --color-ambar-claro: #f7b25e;
+  --color-ambar-tinta: #8a4700;
+  --color-ambar-velo: #fdebd6;
+
+  --color-rojo: #cf3a2c;
+  --color-rojo-claro: #f07a6d;
+  --color-rojo-tinta: #a4261b;
+  --color-rojo-velo: #fbe9e6;
+
+  --shadow-suave: 0 1px 2px rgb(22 33 43 / 0.05), 0 4px 14px -6px rgb(22 33 43 / 0.14);
+  --shadow-alzada: 0 2px 6px rgb(22 33 43 / 0.08), 0 20px 44px -14px rgb(22 33 43 / 0.34);
+
+  --ease-salida: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-aparecer: aparecer 180ms ease-out both;
+  --animate-subir: subir 260ms var(--ease-salida) both;
+  --animate-desplegar: desplegar 160ms var(--ease-salida) both;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes subir {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes desplegar {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 @layer base {
-  :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
-    --card: #ffffff;
-    --card-foreground: #0f172a;
-    --primary: #2563eb;
-    --primary-foreground: #ffffff;
-    --border: #e2e8f0;
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
   }
 
   body {
-    background-color: var(--background);
-    color: var(--foreground);
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: var(--color-suelo);
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    caret-color: var(--color-pavonado);
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: var(--color-pavonado);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2.5px solid var(--color-tinta);
+    outline-offset: 2px;
+  }
+
+  .sobre-pavonado :focus-visible {
+    outline-color: var(--color-amarillo);
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  input[type='number'] {
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-linea-fuerte) transparent;
+  }
+
+  .sobre-pavonado,
+  .sobre-pavonado * {
+    scrollbar-color: var(--color-pavonado-borde) transparent;
+  }
+}
+
+@layer components {
+  /* Títulos: Montserrat pesada y apretada. */
+  .titular {
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  /* Rótulo corto en mayúsculas, sólo para grupos dentro de listas desplegables y referencias. */
+  .rotulo {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+
+  .cifra {
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* Chapa pavonada: grano apenas visible de acero. */
+  .grano-pavonado {
+    background-color: var(--color-pavonado);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
   }
 }

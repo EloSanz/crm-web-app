@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
+from backend.controllers.permissions import MANAGER_ROLES, require_roles
 from backend.database import get_supabase_client
 from backend.models.opportunity import (
     OpportunityCreate,
@@ -88,8 +89,12 @@ def update_opportunity(
     data: OpportunityUpdate,
     authorization: str | None = Header(None),
 ) -> OpportunityResponse:
-    """Modifica datos o etapa del presupuesto."""
+    """Modifica datos o etapa del presupuesto. Reasignar el responsable queda para administrador y responsable comercial."""
     user_id = _extract_user_id(authorization)
+    if data.assigned_to is not None:
+        current = OpportunityService.get_opportunity_by_id(opp_id)
+        if str(current.assigned_to) != str(data.assigned_to):
+            require_roles(authorization, MANAGER_ROLES)
     return OpportunityService.update_opportunity(opp_id, data, user_id=user_id)
 
 

@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from backend.database import get_supabase_client
 from backend.models.activity import ActivityCreate, ActivityResponse
+from backend.services.user_service import UserService
 
 logger = logging.getLogger("crm.services.activity")
 
@@ -30,6 +31,7 @@ class ActivityService:
                 for item in res.data:
                     user_info = item.pop("crm_users", None) or {}
                     item["user_name"] = user_info.get("full_name")
+                    item["attachments"] = item.get("attachments") or []
                     results.append(ActivityResponse(**item))
                 return results
         except Exception as e:
@@ -40,7 +42,7 @@ class ActivityService:
         local_acts = [
             ActivityResponse(**act) for act in _mock_activities.values() if str(act.get("opportunity_id")) == opp_str
         ]
-        local_acts.sort(key=lambda a: a.activity_date, reverse=True)
+        local_acts.sort(key=lambda a: (a.activity_date, a.created_at), reverse=True)
         return local_acts
 
     @classmethod
@@ -60,20 +62,33 @@ class ActivityService:
             "summary": data.summary.strip(),
             "description": data.description.strip() if data.description else None,
             "activity_date": data.activity_date.isoformat(),
+            "attachments": [a.model_dump() for a in data.attachments],
             "created_at": now.isoformat(),
         }
+        user_name = UserService.name_map().get(str(actual_user_id), "Usuario")
 
         try:
             client = get_supabase_client()
-            res = client.table("crm_activities").insert(activity_dict).execute()
+            try:
+                res = client.table("crm_activities").insert(activity_dict).execute()
+            except Exception as col_err:
+                # Base sin la migración 04 (columna attachments): se guardan los enlaces en el detalle.
+                if "attachments" not in str(col_err):
+                    raise
+                fallback = {k: v for k, v in activity_dict.items() if k != "attachments"}
+                if data.attachments:
+                    links = "\n".join(f"{a.name}: {a.url}" for a in data.attachments)
+                    fallback["description"] = f"{fallback.get('description') or ''}\n\nAdjuntos:\n{links}".strip()
+                res = client.table("crm_activities").insert(fallback).execute()
             if res.data and len(res.data) > 0:
                 inserted = res.data[0]
-                inserted["user_name"] = "Usuario"
+                inserted["user_name"] = user_name
+                inserted["attachments"] = inserted.get("attachments") or activity_dict["attachments"]
                 return ActivityResponse(**inserted)
         except Exception as e:
             logger.warning(f"Error insertando en crm_activities: {e}")
 
         # Guardar en mock
-        activity_dict["user_name"] = "Usuario"
+        activity_dict["user_name"] = user_name
         _mock_activities[str(activity_id)] = activity_dict
         return ActivityResponse(**activity_dict)

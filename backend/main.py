@@ -12,6 +12,7 @@ from backend.controllers import (
     product_controller,
     project_controller,
     upload_controller,
+    user_controller,
 )
 
 app = FastAPI(
@@ -112,6 +113,7 @@ app.include_router(product_controller.router)
 app.include_router(opportunity_controller.router)
 app.include_router(opportunity_controller.stages_router)
 app.include_router(upload_controller.router)
+app.include_router(user_controller.router)
 app.include_router(activity_controller.router)
 
 

@@ -1,48 +1,78 @@
 import React from 'react';
+import Link from 'next/link';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Loader2 } from 'lucide-react';
+
+export type ButtonVariant = 'primario' | 'secundario' | 'fantasma' | 'peligro' | 'exito' | 'claro';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'icono' | 'icono-sm';
+
+const base =
+  'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] font-semibold whitespace-nowrap select-none ' +
+  'transition-[background-color,color,border-color,box-shadow,transform] duration-150 ' +
+  'active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none cursor-pointer';
+
+const variants: Record<ButtonVariant, string> = {
+  primario: 'bg-amarillo text-pavonado font-bold shadow-[0_1px_2px_rgb(22_33_43/0.18)] hover:bg-amarillo-2',
+  secundario: 'border border-linea-fuerte bg-chapa text-tinta hover:border-tiza hover:bg-chapa-2',
+  fantasma: 'text-tiza hover:text-tinta hover:bg-chapa-2',
+  peligro: 'bg-rojo text-white hover:bg-rojo-tinta',
+  exito: 'bg-verde text-white shadow-[0_1px_2px_rgb(20_99_55/0.3)] hover:bg-verde-tinta',
+  claro: 'bg-white/10 text-white border border-white/15 hover:bg-white/15',
+};
+
+const sizes: Record<ButtonSize, string> = {
+  sm: 'h-9 px-3 text-sm',
+  md: 'h-11 px-4 text-[15px]',
+  lg: 'h-12 px-5 text-[15px]',
+  icono: 'h-11 w-11',
+  'icono-sm': 'h-9 w-9',
+};
+
+export function buttonClasses(variant: ButtonVariant = 'primario', size: ButtonSize = 'md', className?: string) {
+  return twMerge(clsx(base, variants[variant], sizes[size], className));
+}
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', isLoading = false, children, disabled, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  ({ className, variant = 'primario', size = 'md', isLoading = false, children, disabled, type = 'button', ...props }, ref) => (
+    <button
+      ref={ref}
+      type={type}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
+      className={buttonClasses(variant, size, className)}
+      {...props}
+    >
+      {isLoading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
+      {children}
+    </button>
+  )
+);
+Button.displayName = 'Button';
 
-    const variants = {
-      primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm',
-      secondary: 'bg-slate-800 text-white hover:bg-slate-900 focus:ring-slate-700',
-      outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-blue-500',
-      danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-      ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400',
-    };
+interface ButtonLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  href: string;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+}
 
-    const sizes = {
-      sm: 'px-3 py-1.5 text-xs gap-1.5',
-      md: 'px-4 py-2 text-sm gap-2',
-      lg: 'px-5 py-2.5 text-base gap-2.5',
-    };
-
+export function ButtonLink({ href, variant = 'primario', size = 'md', className, children, ...props }: ButtonLinkProps) {
+  if (href.startsWith('tel:') || href.startsWith('mailto:')) {
     return (
-      <button
-        ref={ref}
-        disabled={disabled || isLoading}
-        className={twMerge(clsx(baseStyles, variants[variant], sizes[size], className))}
-        {...props}
-      >
-        {isLoading && (
-          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        )}
+      <a href={href} className={buttonClasses(variant, size, className)} {...props}>
         {children}
-      </button>
+      </a>
     );
   }
-);
-
-Button.displayName = 'Button';
+  return (
+    <Link href={href} className={buttonClasses(variant, size, className)} {...props}>
+      {children}
+    </Link>
+  );
+}

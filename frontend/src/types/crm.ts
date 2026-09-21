@@ -154,6 +154,13 @@ export type ActivityType =
   | 'nota' 
   | 'presupuesto';
 
+export interface ActivityAttachment {
+  url: string;
+  name: string;
+  content_type?: string | null;
+  size_bytes?: number | null;
+}
+
 export interface Activity {
   id: string;
   opportunity_id?: string | null;
@@ -165,6 +172,7 @@ export interface Activity {
   summary: string;
   description?: string | null;
   activity_date: string;
+  attachments?: ActivityAttachment[];
   created_at: string;
 }
 
@@ -176,6 +184,7 @@ export interface ActivityFormData {
   summary: string;
   description?: string | null;
   activity_date?: string;
+  attachments?: ActivityAttachment[];
 }
 
 export interface ActivePipelineMetric {
@@ -275,3 +284,22 @@ export interface OpportunityUpdateData {
 
 
 
+
+export type CrmRole = 'admin' | 'gerente_comercial' | 'ejecutivo_ventas';
+
+export interface CrmUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: CrmRole;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CrmUserFormData {
+  email: string;
+  full_name: string;
+  role: CrmRole;
+  is_active: boolean;
+}

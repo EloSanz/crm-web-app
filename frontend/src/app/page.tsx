@@ -1,331 +1,182 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
+import clsx from 'clsx';
+import { ArrowRight, Phone, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card } from '@/components/ui/Card';
-import { 
-  Building2, 
-  Users, 
-  CheckCircle2, 
-  AlertCircle, 
-  Server,
-  ArrowRight,
-  HardHat,
-  Sparkles,
-  FileSpreadsheet,
-  Boxes,
-  MapPin
-} from 'lucide-react';
-import { HealthStatus } from '@/types/auth';
-import { fetchCompanies, fetchContacts, fetchProducts, fetchOpportunities, fetchProjects, buildApiUrl } from '@/lib/api';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
+import { PipelineFunnel } from '@/components/opportunities/PipelineFunnel';
+import { Punta } from '@/components/punta/Punta';
+import { fetchActivePipelineMetric, fetchCompanies, fetchContacts, fetchOpportunities, fetchStages } from '@/lib/api';
+import { useLoad } from '@/lib/useLoad';
 import { useCurrentUser } from '@/lib/useUser';
+import { healthOf, HEALTH_TONE } from '@/lib/health';
+import { formatARS, formatARSCompact, formatDaysAgo, telHref } from '@/lib/format';
+
+const load = async () => {
+  const [opportunities, companies, contacts, metric, stages] = await Promise.all([
+    fetchOpportunities(),
+    fetchCompanies(),
+    fetchContacts(),
+    fetchActivePipelineMetric(7).catch(() => null),
+    fetchStages().catch(() => []),
+  ]);
+  return { opportunities, companies, contacts, metric, stages };
+};
+
+const dayTone = { verde: 'text-verde-tinta', ambar: 'text-ambar-tinta', rojo: 'text-rojo-tinta' } as const;
 
 export default function HomePage() {
-  const currentUser = useCurrentUser();
-  const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [isHealthLoading, setIsHealthLoading] = useState(true);
-  const [companiesCount, setCompaniesCount] = useState<number | null>(null);
-  const [contactsCount, setContactsCount] = useState<number | null>(null);
-  const [productsCount, setProductsCount] = useState<number | null>(null);
-  const [opportunitiesCount, setOpportunitiesCount] = useState<number | null>(null);
-  const [projectsCount, setProjectsCount] = useState<number | null>(null);
+  const user = useCurrentUser();
+  const { data, error, loading, reload } = useLoad(load);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    fetch(buildApiUrl('/api/health'))
-      .then((res) => res.json())
-      .then((data: HealthStatus) => {
-        if (isMounted) setHealth(data);
-      })
-      .catch((err) => console.error('Error health check', err))
-      .finally(() => {
-        if (isMounted) setIsHealthLoading(false);
-      });
-
-    // Cargar conteos rápidos
-    fetchCompanies()
-      .then((data) => {
-        if (isMounted) setCompaniesCount(data.length);
-      })
-      .catch(() => {
-        if (isMounted) setCompaniesCount(0);
-      });
-
-    fetchContacts()
-      .then((data) => {
-        if (isMounted) setContactsCount(data.length);
-      })
-      .catch(() => {
-        if (isMounted) setContactsCount(0);
-      });
-
-    fetchProducts()
-      .then((data) => {
-        if (isMounted) setProductsCount(data.length);
-      })
-      .catch(() => {
-        if (isMounted) setProductsCount(0);
-      });
-
-    fetchOpportunities()
-      .then((data) => {
-        if (isMounted) setOpportunitiesCount(data.length);
-      })
-      .catch(() => {
-        if (isMounted) setOpportunitiesCount(0);
-      });
-
-    fetchProjects()
-      .then((data) => {
-        if (isMounted) setProjectsCount(data.length);
-      })
-      .catch(() => {
-        if (isMounted) setProjectsCount(0);
-      });
-
-    return () => {
-      isMounted = false;
+  const view = useMemo(() => {
+    if (!data) return null;
+    const open = data.opportunities.filter((o) => o.status === 'abierta');
+    const cooling = open.filter((o) => healthOf(o) !== 'healthy');
+    const healthy = open.filter((o) => healthOf(o) === 'healthy');
+    const phoneOf = (companyId?: string | null, contactId?: string | null) =>
+      (contactId && data.contacts.find((c) => c.id === contactId)?.phone) || (companyId && data.companies.find((c) => c.id === companyId)?.phone) || null;
+    const followUp = [...open]
+      .sort((a, b) => (b.days_since_last_activity ?? 999) - (a.days_since_last_activity ?? 999) || Number(b.estimated_value) - Number(a.estimated_value))
+      .slice(0, 6)
+      .map((o) => ({ opp: o, phone: phoneOf(o.company_id, o.contact_id) }));
+    return {
+      open,
+      followUp,
+      activeAmount: data.metric?.active_opportunities_amount ?? healthy.reduce((a, o) => a + Number(o.estimated_value || 0), 0),
+      coolingAmount: cooling.reduce((a, o) => a + Number(o.estimated_value || 0), 0),
+      coolingCount: cooling.length,
     };
-  }, []);
+  }, [data]);
+
+  const firstName = user?.full_name?.split(' ')[0];
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        {/* Banner Principal de Bienvenida */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-2xl p-8 shadow-md relative overflow-hidden border border-slate-800">
-          <div className="relative z-10 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-4">
-              <HardHat className="w-3.5 h-3.5" />
-              Especialización: Corralón de Materiales de Construcción
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight" suppressHydrationWarning>
-              {currentUser ? `¡Hola, ${currentUser.full_name.split(' ')[0]}!` : 'CRM para Gestión Comercial'}
+      <div className="space-y-6">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="titular truncate text-[28px] sm:text-[34px]" suppressHydrationWarning>
+              {firstName ? `Hola, ${firstName}` : 'Hola'}
             </h1>
-            <p className="mt-2 text-slate-300 text-sm sm:text-base leading-relaxed">
-              Administración centralizada de clientes contratistas, empresas constructoras y cotizaciones de materiales para obra.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/opportunities"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-xs transition-colors"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                Presupuestos (Cotizador)
-              </Link>
-              <Link
-                href="/projects"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow-xs transition-colors"
-              >
-                <MapPin className="w-4 h-4" />
-                Obras y Locaciones
-              </Link>
-              <Link
-                href="/catalog"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-colors"
-              >
-                <Boxes className="w-4 h-4" />
-                Catálogo de Materiales
-              </Link>
-              <Link
-                href="/companies"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-colors"
-              >
-                <Building2 className="w-4 h-4" />
-                Empresas Contratistas
-              </Link>
-              <Link
-                href="/contacts"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-colors"
-              >
-                <Users className="w-4 h-4" />
-                Contactos de Obra
-              </Link>
-            </div>
           </div>
-        </div>
+          <ButtonLink href="/opportunities/nuevo" size="lg">
+            <Plus className="w-5 h-5" aria-hidden />
+            Nuevo presupuesto
+          </ButtonLink>
+        </header>
 
-        {/* Tarjetas de Módulos Principales */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-600" />
-              Módulos Comerciales
-            </h2>
-            <span className="text-xs font-semibold text-slate-500">Primera Entrega — UNLaM</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Tarjeta Presupuestos */}
-            <Link href="/opportunities" className="group">
-              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                      <FileSpreadsheet className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {opportunitiesCount !== null ? `${opportunitiesCount} presupuestos` : 'Cargando...'}
-                    </span>
+        {loading ? (
+          <LoadingBlock label="Cargando el tablero" rows={3} />
+        ) : error || !data || !view ? (
+          <EmptyState illustration="presupuestos"
+            title="No pudimos traer los datos"
+            description={error ?? undefined}
+            action={
+              <Button variant="secundario" onClick={() => reload()}>
+                Reintentar
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            <section aria-label="Pipeline activo" className="sobre-pavonado grano-pavonado overflow-hidden rounded-2xl px-6 py-6 text-white sm:px-8 sm:py-7">
+              <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+                <div className="min-w-0">
+                  <p className="text-[15px] text-niebla">Pipeline activo</p>
+                  <p className="cifra titular mt-1 whitespace-nowrap text-[clamp(26px,8.6vw,64px)] leading-none">{formatARS(view.activeAmount)}</p>
+                </div>
+                <div className="flex gap-8">
+                  <div>
+                    <p className="text-sm text-niebla">Al día</p>
+                    <p className="cifra text-2xl font-extrabold">
+                      {view.open.length - view.coolingCount}
+                      <span className="text-base font-semibold text-niebla"> de {view.open.length}</span>
+                    </p>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
-                    Presupuestos de Obra
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Cotizaciones armadas con materiales del catálogo asociadas a contratistas u obras.
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
-                  <span>Ir a presupuestos</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Card>
-            </Link>
-
-            {/* Tarjeta Obras y Proyectos */}
-            <Link href="/projects" className="group">
-              <Card className="p-5 hover:border-emerald-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                      <MapPin className="w-5 h-5" />
+                  {view.coolingCount > 0 && (
+                    <div>
+                      <p className="text-sm text-niebla">Se enfría</p>
+                      <p className="cifra text-2xl font-extrabold text-ambar-claro">{formatARSCompact(view.coolingAmount)}</p>
                     </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {projectsCount !== null ? `${projectsCount} obras` : 'Cargando...'}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-emerald-600 transition-colors">
-                    Obras y Locaciones
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Locaciones físicas de entrega para contratistas. Gestión de estados operativos y fletes.
-                  </p>
+                  )}
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
-                  <span>Ver obras activas</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Card>
-            </Link>
+              </div>
+            </section>
 
-            {/* Tarjeta Catálogo de Materiales */}
-            <Link href="/catalog" className="group">
-              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                      <Boxes className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {productsCount !== null ? `${productsCount} materiales` : 'Cargando...'}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
-                    Catálogo de Materiales
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Precios de referencia y rubros para obras: aglomerantes, hierros, áridos, mampostería y fletes.
-                  </p>
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+              <section aria-labelledby="embudo" className="rounded-2xl border border-linea bg-chapa p-5 shadow-suave sm:p-6">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <h2 id="embudo" className="titular text-lg">
+                    Embudo
+                  </h2>
+                  <Link href="/opportunities" className="text-sm font-semibold text-tiza hover:text-tinta">
+                    Ver todo
+                  </Link>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
-                  <span>Ver catálogo completo</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Card>
-            </Link>
+                <PipelineFunnel opportunities={data.opportunities} stages={data.stages} />
+              </section>
 
-            {/* Tarjeta Empresas */}
-            <Link href="/companies" className="group">
-              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                      <Building2 className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {companiesCount !== null ? `${companiesCount} empresas` : 'Cargando...'}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-indigo-600 transition-colors">
-                    Empresas Contratistas
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Constructoras, hormigoneras y desarrolladoras de obra. Gestión con baja lógica y estados comerciales.
-                  </p>
+              <section aria-labelledby="hoy" className="rounded-2xl border border-linea bg-chapa p-5 shadow-suave sm:p-6">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <h2 id="hoy" className="titular text-lg">
+                    A quién llamar hoy
+                  </h2>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
-                  <span>Ir a empresas</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Card>
-            </Link>
-
-            {/* Tarjeta Contactos */}
-            <Link href="/contacts" className="group">
-              <Card className="p-5 hover:border-blue-300 hover:shadow-md transition-all h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {contactsCount !== null ? `${contactsCount} contactos` : 'Cargando...'}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-purple-600 transition-colors">
-                    Contactos de Obra
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Maestros mayores de obra, capataces y particulares vinculados a empresas o compras directas.
-                  </p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-purple-600">
-                  <span>Ir a contactos</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Card>
-            </Link>
-          </div>
-        </div>
-
-        {/* Estado del Backend y Diagnóstico */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-              <Server className="w-5 h-5" />
+                {view.followUp.length === 0 ? (
+                  <p className="py-8 text-center text-[15px] text-tiza">Todo al día.</p>
+                ) : (
+                  <ul className="divide-y divide-linea">
+                    {view.followUp.map(({ opp, phone }) => {
+                      const health = healthOf(opp);
+                      const tel = telHref(phone);
+                      return (
+                        <li key={opp.id} className="relative flex items-center gap-3 py-3">
+                          <Punta health={health} size={18} />
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/opportunities/${opp.id}`}
+                              className="line-clamp-2 text-[15px] font-bold leading-snug after:absolute after:inset-0 focus-visible:outline-none"
+                            >
+                              {opp.title}
+                            </Link>
+                            <p className="line-clamp-2 text-sm leading-snug text-tiza">
+                              {opp.company_name || opp.contact_name || 'Sin cliente'}
+                              {'\u00a0·\u00a0'}
+                              <span className="cifra whitespace-nowrap font-semibold text-tinta">{formatARSCompact(opp.estimated_value)}</span>
+                            </p>
+                          </div>
+                          <span className={clsx('shrink-0 text-[13px] font-bold', dayTone[HEALTH_TONE[health]])}>
+                            <span className="sm:hidden">{opp.days_since_last_activity ?? '—'} d</span>
+                            <span className="hidden sm:inline">{formatDaysAgo(opp.days_since_last_activity)}</span>
+                          </span>
+                          {tel && (
+                            <a
+                              href={tel}
+                              className="relative z-[1] h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-[10px] border border-linea text-tinta hover:border-linea-fuerte hover:bg-chapa-2"
+                              aria-label={`Llamar por ${opp.title}`}
+                            >
+                              <Phone className="w-4 h-4" />
+                            </a>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {view.open.length > view.followUp.length && (
+                  <Link href="/opportunities" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-tinta hover:underline">
+                    Ver los {view.open.length}
+                    <ArrowRight className="w-4 h-4" aria-hidden />
+                  </Link>
+                )}
+              </section>
             </div>
-            <div className="flex-1 text-xs">
-              <p className="font-semibold text-slate-700">API FastAPI</p>
-              <p className="text-slate-500">
-                {isHealthLoading ? 'Comprobando estado...' : health?.status === 'healthy' ? 'En línea en http://localhost:8000' : 'Desconectado'}
-              </p>
-            </div>
-            {health?.status === 'healthy' ? (
-              <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Activo
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs font-semibold text-amber-600">
-                <AlertCircle className="w-4 h-4 text-amber-500" /> Sin conexión
-              </span>
-            )}
-          </Card>
-
-          <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-              <FileSpreadsheet className="w-5 h-5" />
-            </div>
-            <div className="flex-1 text-xs">
-              <p className="font-semibold text-slate-700">Base de Datos Supabase</p>
-              <p className="text-slate-500">Tablas de CRM migradas con esquemas de baja lógica e índices</p>
-            </div>
-            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Conectado
-            </span>
-          </Card>
-        </div>
+          </>
+        )}
       </div>
     </AppLayout>
   );

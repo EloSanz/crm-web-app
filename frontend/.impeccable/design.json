@@ -1,0 +1,683 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-21T21:01:37+00:00",
+  "title": "Design System: Corralap",
+  "extensions": {
+    "colorMeta": {
+      "pavonado": {
+        "role": "primary",
+        "displayName": "Pavonado",
+        "canonical": "#16212b",
+        "tonalRamp": [
+          "#040c14",
+          "#1b2630",
+          "#39434d",
+          "#59636c",
+          "#7b848c",
+          "#9ea6ae",
+          "#c3cad0",
+          "#eaeff4"
+        ]
+      },
+      "pavonado-2": {
+        "role": "primary",
+        "displayName": "Pavonado 2",
+        "canonical": "#1f2e3c",
+        "tonalRamp": [
+          "#030c16",
+          "#182734",
+          "#354451",
+          "#556370",
+          "#788490",
+          "#9ba7b1",
+          "#c1cad4",
+          "#e8f0f7"
+        ]
+      },
+      "pavonado-3": {
+        "role": "primary",
+        "displayName": "Pavonado 3",
+        "canonical": "#2c3f51",
+        "tonalRamp": [
+          "#020c18",
+          "#162736",
+          "#314456",
+          "#526374",
+          "#748494",
+          "#98a7b5",
+          "#becbd8",
+          "#e5f0fb"
+        ]
+      },
+      "pavonado-borde": {
+        "role": "primary",
+        "displayName": "Borde pavonado",
+        "canonical": "#34495c",
+        "tonalRamp": [
+          "#020c18",
+          "#162736",
+          "#304457",
+          "#506476",
+          "#728596",
+          "#97a7b7",
+          "#bccbd9",
+          "#e4f0fc"
+        ]
+      },
+      "niebla": {
+        "role": "primary",
+        "displayName": "Niebla",
+        "canonical": "#a9b8c2",
+        "tonalRamp": [
+          "#080c0f",
+          "#20262a",
+          "#3b4349",
+          "#59636a",
+          "#78848c",
+          "#99a7b1",
+          "#bdccd5",
+          "#e3f1fa"
+        ]
+      },
+      "amarillo": {
+        "role": "primary",
+        "displayName": "Amarillo vial",
+        "canonical": "#ffc20e",
+        "tonalRamp": [
+          "#170700",
+          "#372000",
+          "#5a3c00",
+          "#7f5a00",
+          "#a77a00",
+          "#d09c00",
+          "#fbbf0a",
+          "#ffe665"
+        ]
+      },
+      "amarillo-2": {
+        "role": "primary",
+        "displayName": "Amarillo vial profundo",
+        "canonical": "#f2b400",
+        "tonalRamp": [
+          "#180600",
+          "#381f00",
+          "#5b3b00",
+          "#815900",
+          "#a97900",
+          "#d29a00",
+          "#fbbe2d",
+          "#ffe674"
+        ]
+      },
+      "amarillo-tinta": {
+        "role": "primary",
+        "displayName": "Tinta ámbar oscura",
+        "canonical": "#7a5500",
+        "tonalRamp": [
+          "#1a0500",
+          "#391e00",
+          "#5b3b00",
+          "#7e5a0d",
+          "#9e7c42",
+          "#bfa06d",
+          "#e1c598",
+          "#ffebc4"
+        ]
+      },
+      "amarillo-velo": {
+        "role": "primary",
+        "displayName": "Velo amarillo",
+        "canonical": "#fff3c4",
+        "tonalRamp": [
+          "#0d0b04",
+          "#282518",
+          "#474230",
+          "#67614a",
+          "#8a8366",
+          "#aea583",
+          "#d4caa1",
+          "#fbefc1"
+        ]
+      },
+      "suelo": {
+        "role": "neutral",
+        "displayName": "Suelo zinc",
+        "canonical": "#eceeed",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#242525",
+          "#414242",
+          "#606261",
+          "#818382",
+          "#a4a5a4",
+          "#c8cac9",
+          "#edefee"
+        ]
+      },
+      "chapa": {
+        "role": "neutral",
+        "displayName": "Chapa",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "chapa-2": {
+        "role": "neutral",
+        "displayName": "Chapa 2",
+        "canonical": "#f4f6f5",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#242525",
+          "#414242",
+          "#606261",
+          "#818382",
+          "#a4a5a4",
+          "#c8cac9",
+          "#edefee"
+        ]
+      },
+      "linea": {
+        "role": "neutral",
+        "displayName": "Línea",
+        "canonical": "#dce1df",
+        "tonalRamp": [
+          "#090c0b",
+          "#222625",
+          "#3f4341",
+          "#5e6261",
+          "#7f8382",
+          "#a1a6a4",
+          "#c5cac8",
+          "#ebf0ee"
+        ]
+      },
+      "linea-fuerte": {
+        "role": "neutral",
+        "displayName": "Línea fuerte",
+        "canonical": "#bfc7c4",
+        "tonalRamp": [
+          "#070d0b",
+          "#202724",
+          "#3d4441",
+          "#5c6360",
+          "#7d8481",
+          "#9fa7a4",
+          "#c3cbc8",
+          "#e8f1ee"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "#16212b",
+        "tonalRamp": [
+          "#040c14",
+          "#1b2630",
+          "#39434d",
+          "#59636c",
+          "#7b848c",
+          "#9ea6ae",
+          "#c3cad0",
+          "#eaeff4"
+        ]
+      },
+      "tiza": {
+        "role": "neutral",
+        "displayName": "Tiza",
+        "canonical": "#5a666f",
+        "tonalRamp": [
+          "#060c11",
+          "#1e262c",
+          "#3a434b",
+          "#57636c",
+          "#79848d",
+          "#9ca7af",
+          "#c1cbd2",
+          "#e7f0f6"
+        ]
+      },
+      "verde": {
+        "role": "secondary",
+        "displayName": "Verde al día",
+        "canonical": "#1b8049",
+        "tonalRamp": [
+          "#001300",
+          "#00310c",
+          "#005125",
+          "#0f7440",
+          "#419662",
+          "#6fb887",
+          "#9bdbae",
+          "#c7fed7"
+        ]
+      },
+      "verde-tinta": {
+        "role": "secondary",
+        "displayName": "Tinta verde",
+        "canonical": "#146337",
+        "tonalRamp": [
+          "#001300",
+          "#00300f",
+          "#005028",
+          "#2c7146",
+          "#56926a",
+          "#7fb48f",
+          "#a8d6b5",
+          "#d3fadd"
+        ]
+      },
+      "verde-claro": {
+        "role": "secondary",
+        "displayName": "Núcleo verde",
+        "canonical": "#3dbe74",
+        "tonalRamp": [
+          "#001300",
+          "#00310d",
+          "#005225",
+          "#00753e",
+          "#239a5a",
+          "#42c077",
+          "#79e39f",
+          "#abffc9"
+        ]
+      },
+      "verde-velo": {
+        "role": "secondary",
+        "displayName": "Velo verde",
+        "canonical": "#e4f3ea",
+        "tonalRamp": [
+          "#040e08",
+          "#1d2822",
+          "#39453e",
+          "#58655d",
+          "#79867e",
+          "#9ba9a1",
+          "#bfcdc5",
+          "#e4f3ea"
+        ]
+      },
+      "ambar": {
+        "role": "secondary",
+        "displayName": "Naranja de señalización",
+        "canonical": "#e8830c",
+        "tonalRamp": [
+          "#210000",
+          "#451300",
+          "#6c2e00",
+          "#954a00",
+          "#c16800",
+          "#ec881e",
+          "#ffb161",
+          "#ffda95"
+        ]
+      },
+      "ambar-tinta": {
+        "role": "secondary",
+        "displayName": "Tinta naranja",
+        "canonical": "#8a4700",
+        "tonalRamp": [
+          "#210000",
+          "#441300",
+          "#6a2f00",
+          "#904e10",
+          "#b07243",
+          "#d0976d",
+          "#f1bd98",
+          "#ffe4c5"
+        ]
+      },
+      "ambar-claro": {
+        "role": "secondary",
+        "displayName": "Núcleo naranja",
+        "canonical": "#f7b25e",
+        "tonalRamp": [
+          "#180600",
+          "#391e00",
+          "#5c3906",
+          "#82571d",
+          "#aa7634",
+          "#d4974b",
+          "#feba68",
+          "#ffe199"
+        ]
+      },
+      "ambar-velo": {
+        "role": "secondary",
+        "displayName": "Velo naranja",
+        "canonical": "#fdebd6",
+        "tonalRamp": [
+          "#0e0b07",
+          "#29241e",
+          "#484139",
+          "#696055",
+          "#8b8073",
+          "#b0a393",
+          "#d6c6b4",
+          "#fdebd6"
+        ]
+      },
+      "rojo": {
+        "role": "secondary",
+        "displayName": "Rojo frío",
+        "canonical": "#cf3a2c",
+        "tonalRamp": [
+          "#2d0000",
+          "#550000",
+          "#810000",
+          "#af261b",
+          "#da4a3b",
+          "#fa7866",
+          "#ffa392",
+          "#ffcfbe"
+        ]
+      },
+      "rojo-tinta": {
+        "role": "secondary",
+        "displayName": "Tinta roja",
+        "canonical": "#a4261b",
+        "tonalRamp": [
+          "#2c0000",
+          "#550000",
+          "#7f0803",
+          "#aa2f23",
+          "#ca5b4d",
+          "#ea8475",
+          "#ffae9f",
+          "#ffd7ca"
+        ]
+      },
+      "rojo-claro": {
+        "role": "secondary",
+        "displayName": "Núcleo rojo",
+        "canonical": "#f07a6d",
+        "tonalRamp": [
+          "#220000",
+          "#470d0a",
+          "#6f2721",
+          "#99423a",
+          "#c65f54",
+          "#f37e70",
+          "#ffa799",
+          "#ffd1c3"
+        ]
+      },
+      "rojo-velo": {
+        "role": "secondary",
+        "displayName": "Velo rojo",
+        "canonical": "#fbe9e6",
+        "tonalRamp": [
+          "#0d0a0a",
+          "#292423",
+          "#47403f",
+          "#685f5d",
+          "#8b7f7e",
+          "#afa29f",
+          "#d5c5c2",
+          "#fceae7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "El monto del pipeline activo en la banda pavonada; uno por pantalla."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título de vista (28px celular / 34px desde sm), siempre solo."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Títulos de panel, diálogo y estado vacío (18–20px)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Tamaño de trabajo: celdas, campos, navegación, avisos."
+      },
+      "body-strong": {
+        "displayName": "Body strong",
+        "purpose": "Nombre de presupuesto o cliente en tarjetas y listas."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Cliente, etapa, encabezados de columna, contadores."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Pastillas, días teñidos por salud, ayudas y errores."
+      },
+      "rotulo": {
+        "displayName": "Rótulo",
+        "purpose": "Mayúsculas espaciadas sólo para grupos en desplegables/paleta y referencias cortas."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "CORRALAP en el logo, escala con el isotipo (17/19/26/38px)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "suave",
+        "value": "0 1px 2px rgb(22 33 43 / 0.05), 0 4px 14px -6px rgb(22 33 43 / 0.14)",
+        "purpose": "Paneles, tablas, tarjetas en reposo, estados vacíos, segmento activo."
+      },
+      {
+        "name": "alzada",
+        "value": "0 2px 6px rgb(22 33 43 / 0.08), 0 20px 44px -14px rgb(22 33 43 / 0.34)",
+        "purpose": "Diálogos, avisos, desplegables, tooltip, hover de tarjeta."
+      },
+      {
+        "name": "foco-campo",
+        "value": "0 0 0 3px rgb(22 33 43 / 0.14)",
+        "purpose": "Halo del campo enfocado junto con borde tinta."
+      },
+      {
+        "name": "primario",
+        "value": "0 1px 2px rgb(22 33 43 / 0.18)",
+        "purpose": "Apoyo mínimo del botón primario amarillo."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-salida",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Curva de salida para todo lo que entra o se despliega."
+      },
+      {
+        "name": "aparecer",
+        "value": "aparecer 180ms ease-out both",
+        "purpose": "Fundido de velos y tooltips."
+      },
+      {
+        "name": "subir",
+        "value": "subir 260ms var(--ease-salida) both",
+        "purpose": "Diálogos y avisos: suben 12px al entrar."
+      },
+      {
+        "name": "desplegar",
+        "value": "desplegar 160ms var(--ease-salida) both",
+        "purpose": "Menús, desplegables y calendario: -4px y 98%."
+      },
+      {
+        "name": "estado",
+        "value": "150ms",
+        "purpose": "Transiciones de color, borde y sombra en controles."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primario",
+      "description": "Única acción principal de la vista: amarillo vial con texto pavonado.",
+      "html": "<button class=\"ds-btn-primario\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Nuevo presupuesto</button>",
+      "css": ".ds-btn-primario { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer; border: 1px solid transparent; transition: background-color 150ms, color 150ms, border-color 150ms, box-shadow 150ms, transform 150ms; background: var(--color-amarillo, #ffc20e); color: var(--color-pavonado, #16212b); font-weight: 700; box-shadow: 0 1px 2px rgb(22 33 43 / 0.18); } .ds-btn-primario:hover { background: var(--color-amarillo-2, #f2b400); } .ds-btn-primario:active { transform: scale(0.98); } .ds-btn-primario:focus-visible { outline: 2.5px solid var(--color-tinta, #16212b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secundario",
+      "description": "Acciones de apoyo: chapa con borde línea fuerte.",
+      "html": "<button class=\"ds-btn-secundario\">Editar</button>",
+      "css": ".ds-btn-secundario { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer; border: 1px solid transparent; transition: background-color 150ms, color 150ms, border-color 150ms, box-shadow 150ms, transform 150ms; background: var(--color-chapa, #fff); color: var(--color-tinta, #16212b); border-color: var(--color-linea-fuerte, #bfc7c4); } .ds-btn-secundario:hover { background: var(--color-chapa-2, #f4f6f5); border-color: var(--color-tiza, #5a666f); } .ds-btn-secundario:active { transform: scale(0.98); } .ds-btn-secundario:focus-visible { outline: 2.5px solid var(--color-tinta, #16212b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón fantasma",
+      "kind": "button",
+      "refersTo": "button-fantasma",
+      "description": "Acción terciaria, sólo texto tiza.",
+      "html": "<button class=\"ds-btn-fantasma\">Cancelar</button>",
+      "css": ".ds-btn-fantasma { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer; border: 1px solid transparent; transition: background-color 150ms, color 150ms, border-color 150ms, box-shadow 150ms, transform 150ms; background: transparent; color: var(--color-tiza, #5a666f); } .ds-btn-fantasma:hover { background: var(--color-chapa-2, #f4f6f5); color: var(--color-tinta, #16212b); } .ds-btn-fantasma:focus-visible { outline: 2.5px solid var(--color-tinta, #16212b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón éxito",
+      "kind": "button",
+      "refersTo": "button-exito",
+      "description": "Sólo para concretar una venta.",
+      "html": "<button class=\"ds-btn-exito\">Venta concretada</button>",
+      "css": ".ds-btn-exito { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer; border: 1px solid transparent; transition: background-color 150ms, color 150ms, border-color 150ms, box-shadow 150ms, transform 150ms; background: var(--color-verde, #1b8049); color: #fff; box-shadow: 0 1px 2px rgb(20 99 55 / 0.3); } .ds-btn-exito:hover { background: var(--color-verde-tinta, #146337); } .ds-btn-exito:focus-visible { outline: 2.5px solid var(--color-tinta, #16212b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo de búsqueda",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de 44px con ícono; foco con borde tinta y halo pavonado.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Buscar</span><span class=\"ds-input-wrap\"><span class=\"ds-input-icon\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg></span><input class=\"ds-input\" type=\"search\" placeholder=\"Buscar presupuesto, cliente u obra\"></span></label>",
+      "css": ".ds-field { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: block; max-width: 360px; } .ds-field-label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--color-tinta, #16212b); } .ds-input-wrap { position: relative; display: block; } .ds-input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-tiza, #5a666f); display: flex; } .ds-input { font: inherit; width: 100%; height: 44px; padding: 0 14px 0 40px; border-radius: 10px; border: 1px solid var(--color-linea-fuerte, #bfc7c4); background: var(--color-chapa, #fff); color: var(--color-tinta, #16212b); font-size: 15px; transition: border-color 150ms, box-shadow 150ms; } .ds-input::placeholder { color: #7d8a92; } .ds-input:hover { border-color: var(--color-tiza, #5a666f); } .ds-input:focus { outline: none; border-color: var(--color-tinta, #16212b); box-shadow: 0 0 0 3px rgb(22 33 43 / 0.14); }"
+    },
+    {
+      "name": "Pastillas de filtro",
+      "kind": "chip",
+      "refersTo": "filter-chip",
+      "description": "Filtros en píldora; la seleccionada va en pavonado, nunca en amarillo.",
+      "html": "<div class=\"ds-filters\"><button class=\"ds-filter\" aria-pressed=\"true\">Abiertos <span class=\"ds-count\">11</span></button><button class=\"ds-filter\" aria-pressed=\"false\">Al día <span class=\"ds-count\">6</span></button><button class=\"ds-filter\" aria-pressed=\"false\">En riesgo <span class=\"ds-count\">2</span></button></div>",
+      "css": ".ds-filters { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: flex; flex-wrap: wrap; gap: 6px; } .ds-filter { font: inherit; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--color-linea, #dce1df); background: var(--color-chapa, #fff); color: var(--color-tinta, #16212b); font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 150ms, border-color 150ms; } .ds-filter:hover { border-color: var(--color-linea-fuerte, #bfc7c4); } .ds-filter .ds-count { color: var(--color-tiza, #5a666f); font-variant-numeric: tabular-nums; } .ds-filter[aria-pressed=true] { background: var(--color-pavonado, #16212b); border-color: var(--color-pavonado, #16212b); color: #fff; } .ds-filter[aria-pressed=true] .ds-count { color: var(--color-niebla, #a9b8c2); } .ds-filter:focus-visible { outline: 2.5px solid var(--color-tinta, #16212b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Pastillas de salud y estado",
+      "kind": "chip",
+      "refersTo": "chip-verde",
+      "description": "Semáforo velado para salud; fuerte y neutro para estados que no son salud.",
+      "html": "<div class=\"ds-chips\"><span class=\"ds-chip ds-chip-verde\"><i></i>Al día · hace 3 días</span><span class=\"ds-chip ds-chip-ambar\"><i></i>hace 11 días</span><span class=\"ds-chip ds-chip-rojo\"><i></i>hace 24 días</span><span class=\"ds-chip ds-chip-fuerte\"><i></i>Abierta</span><span class=\"ds-chip ds-chip-neutro\"><i></i>Perdido</span></div>",
+      "css": ".ds-chips { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: flex; flex-wrap: wrap; gap: 8px; } .ds-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 9999px; font-size: 13px; font-weight: 600; white-space: nowrap; } .ds-chip i { width: 6px; height: 6px; border-radius: 9999px; } .ds-chip-verde { background: var(--color-verde-velo, #e4f3ea); color: var(--color-verde-tinta, #146337); } .ds-chip-verde i { background: var(--color-verde, #1b8049); } .ds-chip-ambar { background: var(--color-ambar-velo, #fdebd6); color: var(--color-ambar-tinta, #8a4700); } .ds-chip-ambar i { background: var(--color-ambar, #e8830c); } .ds-chip-rojo { background: var(--color-rojo-velo, #fbe9e6); color: var(--color-rojo-tinta, #a4261b); } .ds-chip-rojo i { background: var(--color-rojo, #cf3a2c); } .ds-chip-fuerte { background: var(--color-pavonado, #16212b); color: #fff; } .ds-chip-fuerte i { background: #fff; } .ds-chip-neutro { background: var(--color-chapa-2, #f4f6f5); color: var(--color-tiza, #5a666f); } .ds-chip-neutro i { background: var(--color-linea-fuerte, #bfc7c4); }"
+    },
+    {
+      "name": "Riel de navegación",
+      "kind": "nav",
+      "refersTo": "nav-rail",
+      "description": "Riel pavonado con grano; la ubicación actual en amarillo vial.",
+      "html": "<nav class=\"ds-rail\"><div class=\"ds-rail-logo\"><svg viewBox=\"0 0 64 64\" width=\"36\" height=\"36\"><rect width=\"64\" height=\"64\" rx=\"12\" fill=\"#FFC20E\"/><path fill=\"#16212B\" d=\"M22.667,10H36.5A1.5,1.5 0 0 1 38,11.5V21.167A1.5,1.5 0 0 1 36.5,22.667H10A0,0 0 0 1 10,22.667V22.667A12.667,12.667 0 0 1 22.667,10ZM42.5,10H52.5A1.5,1.5 0 0 1 54,11.5V21.167A1.5,1.5 0 0 1 52.5,22.667H42.5A1.5,1.5 0 0 1 41,21.167V11.5A1.5,1.5 0 0 1 42.5,10ZM11.5,25.667H21.167A1.5,1.5 0 0 1 22.667,27.167V36.833A1.5,1.5 0 0 1 21.167,38.333H11.5A1.5,1.5 0 0 1 10,36.833V27.167A1.5,1.5 0 0 1 11.5,25.667ZM10,41.333H28.5A1.5,1.5 0 0 1 30,42.833V52.5A1.5,1.5 0 0 1 28.5,54H22.667A12.667,12.667 0 0 1 10,41.333V41.333A0,0 0 0 1 10,41.333ZM34.5,41.333H52.5A1.5,1.5 0 0 1 54,42.833V52.5A1.5,1.5 0 0 1 52.5,54H34.5A1.5,1.5 0 0 1 33,52.5V42.833A1.5,1.5 0 0 1 34.5,41.333Z\"/></svg><span>CORRALAP</span></div><a class=\"ds-rail-item\" aria-current=\"page\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z\"/></svg>Inicio</a><a class=\"ds-rail-item\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"4\" width=\"12\" height=\"17\" rx=\"2\"/><path d=\"M9 4h6v3H9zM9 12h6M9 16h4\"/></svg>Presupuestos</a></nav>",
+      "css": ".ds-rail { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); width: 248px; padding: 24px 12px; background: var(--color-pavonado, #16212b); color: #fff; display: flex; flex-direction: column; gap: 2px; border-radius: 12px; } .ds-rail-logo { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; font-size: 19px; font-weight: 800; letter-spacing: 0.09em; } .ds-rail-item { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 10px; color: var(--color-niebla, #a9b8c2); font-size: 15px; font-weight: 600; text-decoration: none; transition: background-color 150ms, color 150ms; } .ds-rail-item:hover { background: var(--color-pavonado-2, #1f2e3c); color: #fff; } .ds-rail-item[aria-current=page] { background: var(--color-amarillo, #ffc20e); color: var(--color-pavonado, #16212b); font-weight: 700; } .ds-rail-item:focus-visible { outline: 2.5px solid var(--color-amarillo, #ffc20e); outline-offset: 2px; }"
+    },
+    {
+      "name": "Tarjeta de presupuesto",
+      "kind": "card",
+      "refersTo": "card-presupuesto",
+      "description": "Punta de salud, nombre, cliente, días teñidos y monto tabular.",
+      "html": "<article class=\"ds-opp\"><div class=\"ds-opp-head\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 20 20\"><circle cx=\"10\" cy=\"10\" r=\"10\" fill=\"#e8830c\"/><circle cx=\"10\" cy=\"10\" r=\"3.8\" fill=\"#f7b25e\"/></svg><h3>Losa y columnas · Nave Logística</h3></div><div class=\"ds-opp-body\"><p class=\"ds-opp-client\">Hormigonera &amp; Estructuras San Martín</p><p class=\"ds-opp-days\">hace 11 días</p><p class=\"ds-opp-amount\">$ 3.224.800</p></div></article>",
+      "css": ".ds-opp { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); max-width: 280px; padding: 16px; border-radius: 12px; background: var(--color-chapa, #fff); border: 1px solid var(--color-linea, #dce1df); box-shadow: 0 1px 2px rgb(22 33 43 / 0.05), 0 4px 14px -6px rgb(22 33 43 / 0.14); transition: box-shadow 150ms, border-color 150ms; cursor: pointer; } .ds-opp:hover { border-color: var(--color-linea-fuerte, #bfc7c4); box-shadow: 0 2px 6px rgb(22 33 43 / 0.08), 0 20px 44px -14px rgb(22 33 43 / 0.34); } .ds-opp-head { display: flex; align-items: flex-start; gap: 10px; } .ds-opp-head svg { flex-shrink: 0; margin-top: 2px; } .ds-opp h3 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.375; color: var(--color-tinta, #16212b); } .ds-opp-body { padding-left: 28px; } .ds-opp-client { margin: 4px 0 0; font-size: 14px; color: var(--color-tiza, #5a666f); } .ds-opp-days { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--color-ambar-tinta, #8a4700); } .ds-opp-amount { margin: 8px 0 0; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }"
+    },
+    {
+      "name": "Banda del pipeline activo",
+      "kind": "custom",
+      "refersTo": "banda-pavonado",
+      "description": "La cifra display sobre pavonado con grano; lo que se enfría en naranja claro.",
+      "html": "<section class=\"ds-banda\"><div><p class=\"ds-banda-k\">Pipeline activo</p><p class=\"ds-banda-v\">$ 338.193.000</p></div><div class=\"ds-banda-side\"><div><p class=\"ds-banda-k\">Al día</p><p class=\"ds-banda-s\">6 <span>de 11</span></p></div><div><p class=\"ds-banda-k\">Se enfría</p><p class=\"ds-banda-s ds-cool\">$ 18 M</p></div></div></section>",
+      "css": ".ds-banda { font-family: var(--font-sans, Montserrat, ui-sans-serif, system-ui, sans-serif); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; padding: 28px 32px; border-radius: 16px; background: var(--color-pavonado, #16212b); color: #fff; } .ds-banda p { margin: 0; } .ds-banda-k { font-size: 15px; color: var(--color-niebla, #a9b8c2); } .ds-banda-v { margin-top: 4px !important; font-size: clamp(26px, 8.6vw, 64px); font-weight: 800; letter-spacing: -0.025em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; } .ds-banda-side { display: flex; gap: 32px; } .ds-banda-s { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; } .ds-banda-s span { font-size: 16px; font-weight: 600; color: var(--color-niebla, #a9b8c2); } .ds-cool { color: var(--color-ambar-claro, #f7b25e); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Cartelería de obra",
+    "overview": "**Creative North Star: \"Cartelería de obra\"**\n\nCorralap se ve como la señalización de un corralón: amarillo vial sobre acero pavonado para la marca y la acción, suelo de zinc claro para trabajar, y una punta de hierro pintada por presupuesto que dice qué tan fresco está el seguimiento. Es una herramienta de mostrador y de celular en la calle: cifras grandes, texto de 15px como piso de lectura, objetivos táctiles de 44px y casi nada de prosa en pantalla. Cada título está solo; no hay bajadas ni explicaciones.\n\nEl sistema separa tres voces de color y no las mezcla. El amarillo habla de marca, de la acción principal y de dónde estás. El pavonado marca lo seleccionado. Verde, naranja y rojo sólo hablan de salud del seguimiento y del resultado de la venta. Todo lo demás es neutro: chapa blanca, líneas de zinc, tinta pavonada, tiza para lo secundario.\n\nLa densidad es de operación, no de tablero SaaS: superficies claras con radio de 12 a 16px y sombra corta, un riel oscuro con grano de acero apenas visible, Montserrat pesada y apretada en títulos y cifras. Rechazos confirmados: la estética genérica de startup/SaaS, la letra chica o densa, los paneles laterales (drawers) y la metáfora del óxido para el semáforo.",
+    "keyCharacteristics": [
+      "Amarillo vial (marca + acción + ubicación) sobre pavonado azul-negro, sobre suelo zinc.",
+      "Semáforo plano de tres pinturas reservado a la salud del seguimiento y al resultado de venta.",
+      "Montserrat en todo: 800 apretada para títulos y cifras, 15px para leer, 13px para metadatos.",
+      "Cifras tabulares siempre; la plata se lee sin abrir nada.",
+      "Cada tarea es una ruta propia; cero desborde de página en cualquier ancho.",
+      "Logo de cinco ladrillos macizos en traba sobre placa amarilla; formas llenas, sin líneas finas."
+    ],
+    "rules": [
+      {
+        "name": "The Yellow Never Reports Rule",
+        "body": "El amarillo es marca, acción principal y ubicación actual. Nunca comunica estado, salud ni selección. Si algo amarillo no es el logo, el botón principal de la vista o \"estás acá\", está mal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Pavonado Selects Rule",
+        "body": "Lo elegido por el usuario (filtro, segmento, fecha, switch) se pinta en pavonado con texto blanco. No en amarillo, no en verde.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Paints Rule",
+        "body": "Verde, naranja y rojo sólo dicen salud del seguimiento o resultado de venta (y rojo, además, error y peligro). Los estados de registro que no son salud (abierto, en pausa, perdido) usan las pastillas `fuerte` (pavonado), `pausa` (chapa con punto vacío) o `neutro`.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lonely Title Rule",
+        "body": "Un título de vista va solo. Nada de subtítulos explicativos ni rótulos encima; el contexto lo dan los datos.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Money Rule",
+        "body": "Todo monto, conteo o cantidad usa cifras tabulares y de caja alta (−0.01em). Los montos en tarjetas se escalan con el contenedor antes de cortarse.",
+        "section": "typography"
+      },
+      {
+        "name": "The Only-What-Floats Rule",
+        "body": "La sombra alzada es de lo que está por encima del contenido (diálogo, aviso, desplegable, tarjeta levantada). Una superficie en su lugar lleva sombra suave o ninguna.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Steel Grain Rule",
+        "body": "Las superficies pavonadas grandes (riel, barra superior, banda del pipeline) llevan el grano de acero de ruido fractal al 7%. Es textura, no dibujo: nunca se nota a primera vista.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reservar el amarillo vial para el logo, el único botón primario de la vista y la ubicación actual en la navegación.",
+      "Do pintar toda selección del usuario (filtro, segmento, fecha, switch) en pavonado con texto blanco.",
+      "Do usar verde / naranja / rojo sólo para salud del seguimiento (≤7 d, 8–14 d, >14 d) y resultado de venta; rojo además para error y peligro.",
+      "Do mantener 15px como tamaño de trabajo, 13px como piso, y 44px como objetivo táctil.",
+      "Do llevar todo número en cifras tabulares y todo título en Montserrat 800 con −0.025em.",
+      "Do resolver detalle, alta y edición como rutas con \"volver\", y convertir tablas anchas en listas compactas debajo de 1280px.",
+      "Do usar el logo sólo en sus versiones horizontal, vertical e isotipo, a color o en monocromo negro sólido / blanco puro calado, con un alto de hilada de área de protección."
+    ],
+    "donts": [
+      "Don't usar el amarillo para comunicar estado, salud o selección.",
+      "Don't agregar subtítulos, bajadas ni textos explicativos debajo de los títulos de vista.",
+      "Don't abrir paneles laterales (drawers) para detalle o edición.",
+      "Don't permitir scroll horizontal de página en ningún ancho.",
+      "Don't usar el rótulo en mayúsculas como encabezado sobre títulos de sección; queda para grupos de desplegables y referencias cortas.",
+      "Don't dar al logo degradés, sombras, 3D, líneas finas, otros colores de placa, ni poner los ladrillos sin placa sobre fondo claro.",
+      "Don't volver a la metáfora del óxido ni a paletas de semáforo desaturadas: las tres pinturas son planas."
+    ]
+  }
+}

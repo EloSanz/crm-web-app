@@ -2,16 +2,22 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
-import { AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Field, Input } from '@/components/ui/Field';
 import { buildApiUrl, CRM_CLIENT_API_KEY } from '@/lib/api';
+
+const DEMO_USERS = [
+  { role: 'Administrador', email: 'admin@crm.com', password: 'admin123' },
+  { role: 'Responsable comercial', email: 'gerente@crm.com', password: 'gerente123' },
+  { role: 'Vendedor', email: 'vendedor@crm.com', password: 'vendedor123' },
+];
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,108 +39,107 @@ export function LoginForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.detail || 'Error al iniciar sesión');
+        throw new Error(data.detail || 'No pudimos iniciar sesión.');
       }
 
       // Guardar token y datos del usuario en localStorage para la sesión
       if (typeof window !== 'undefined') {
         localStorage.setItem('crm_access_token', data.access_token);
         localStorage.setItem('crm_user', JSON.stringify(data.user));
+        window.dispatchEvent(new Event('crm-user-change'));
       }
 
       router.push('/');
       router.refresh();
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Ocurrió un error inesperado al conectar con el servidor.');
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos conectar con el servidor. Revisá la conexión y probá de nuevo.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDemoFill = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError(null);
-  };
-
   return (
-    <Card className="w-full max-w-md p-8 shadow-xl border-slate-200">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-50 text-blue-600 mb-3">
-          <ShieldCheck className="w-7 h-7" />
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Acceso al CRM</h1>
-        <p className="text-sm text-slate-500 mt-1">Gestión Comercial y Embudo de Ventas</p>
-      </div>
+    <div className="w-full max-w-[420px]">
+      <h1 className="titular text-[28px] sm:text-[34px]">Ingresar</h1>
 
       {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3 text-red-700 text-sm">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600" />
-          <div>
-            <p className="font-semibold">Fallo en la autenticación</p>
-            <p className="text-xs text-red-600 mt-0.5">{error}</p>
-          </div>
+        <div role="alert" className="mt-6 rounded-xl border border-rojo/30 bg-rojo-velo px-4 py-3 text-rojo-tinta">
+          <p className="font-bold">No pudimos ingresar</p>
+          <p className="mt-0.5 text-sm">{error}</p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <Input
-            label="Correo"
-            type="email"
-            required
-            placeholder="admin@crm.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isLoading}
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        <Field label="Correo" required>
+          {({ id }) => (
+            <Input
+              id={id}
+              type="email"
+              autoComplete="email"
+              required
+              placeholder="nombre@corralon.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+            />
+          )}
+        </Field>
 
-        <div>
-          <Input
-            label="Contraseña"
-            type="password"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isLoading}
-          />
-        </div>
+        <Field label="Contraseña" required>
+          {({ id }) => (
+            <div className="relative">
+              <Input
+                id={id}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                className="pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-md text-tiza hover:text-tinta hover:bg-chapa-2 cursor-pointer"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          )}
+        </Field>
 
-        <Button type="submit" variant="primary" size="lg" className="w-full font-semibold" isLoading={isLoading}>
-          Ingresar al Sistema
-          <ArrowRight className="w-4 h-4 ml-1.5" />
+        <Button type="submit" size="lg" className="w-full" isLoading={isLoading}>
+          Ingresar
+          {!isLoading && <ArrowRight className="w-5 h-5" aria-hidden />}
         </Button>
       </form>
 
-      <div className="mt-8 pt-6 border-t border-slate-100">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-          Credenciales de Demostración
-        </p>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => handleDemoFill('admin@crm.com', 'admin123')}
-            className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 text-left transition-colors"
-          >
-            <span className="font-semibold text-slate-800 block">Admin</span>
-            <span className="text-slate-500 text-[11px]">admin@crm.com</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDemoFill('vendedor@crm.com', 'vendedor123')}
-            className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 text-left transition-colors"
-          >
-            <span className="font-semibold text-slate-800 block">Vendedor</span>
-            <span className="text-slate-500 text-[11px]">vendedor@crm.com</span>
-          </button>
+      <div className="mt-10 border-t border-linea pt-6">
+        <div className="grid grid-cols-1 gap-2">
+          {DEMO_USERS.map((u) => (
+            <button
+              key={u.email}
+              type="button"
+              onClick={() => {
+                setEmail(u.email);
+                setPassword(u.password);
+                setError(null);
+              }}
+              className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-linea bg-chapa px-4 py-3 text-left transition-colors hover:border-linea-fuerte cursor-pointer"
+            >
+              <span className="shrink-0 font-bold">{u.role}</span>
+              <span className="min-w-0 truncate text-sm text-tiza">{u.email}</span>
+            </button>
+          ))}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
