@@ -89,6 +89,15 @@ async def upload_site_visit_image(file: UploadFile = File(...)) -> dict[str, Any
     return await _process_image_upload(file, prefix="crm/obras")
 
 
+@router.post(
+    "/adjunto",
+    summary="Subir un archivo adjunto al seguimiento de un presupuesto",
+)
+async def upload_activity_attachment(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Sube una foto o PDF (remito, plano, foto de obra) para adjuntar a una actividad."""
+    return await _process_image_upload(file, prefix="crm/adjuntos")
+
+
 @router.delete(
     "/{storage_key:path}",
     summary="Eliminar archivo o imagen de S3",

@@ -13,7 +13,10 @@ import {
   Stage,
   Activity,
   ActivityFormData,
-  ActivePipelineMetric
+  ActivePipelineMetric,
+  ActivityAttachment,
+  CrmUser,
+  CrmUserFormData,
 } from '@/types/crm';
 
 export function getApiBaseUrl(): string {
@@ -250,6 +253,18 @@ export async function fetchProducts(params?: { category?: string; q?: string }):
   return res.json();
 }
 
+export async function fetchProduct(id: string): Promise<Product> {
+  const url = buildApiUrl(`/api/products/${id}`);
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('No encontramos ese material');
+  }
+  return res.json();
+}
+
 export async function createProduct(data: ProductFormData): Promise<Product> {
   const url = buildApiUrl('/api/products');
   const res = await fetch(url, {
@@ -319,6 +334,18 @@ export async function fetchOpportunities(params?: {
   });
   if (!res.ok) {
     throw new Error('Error al obtener presupuestos');
+  }
+  return res.json();
+}
+
+export async function fetchOpportunity(id: string): Promise<Opportunity> {
+  const url = buildApiUrl(`/api/opportunities/${id}`);
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error('No encontramos ese presupuesto');
   }
   return res.json();
 }
@@ -482,3 +509,55 @@ export async function fetchActivePipelineMetric(days: number = 7): Promise<Activ
 
 
 
+
+// ---------------------------------------------------------------------------
+// USUARIOS Y ROLES
+// ---------------------------------------------------------------------------
+
+export async function fetchUsers(): Promise<CrmUser[]> {
+  const res = await fetch(buildApiUrl('/api/users'), { headers: getAuthHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error('No se pudieron cargar los usuarios');
+  return res.json();
+}
+
+export async function fetchUser(id: string): Promise<CrmUser> {
+  const res = await fetch(buildApiUrl(`/api/users/${id}`), { headers: getAuthHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error('No encontramos ese usuario');
+  return res.json();
+}
+
+export async function createUser(data: CrmUserFormData): Promise<CrmUser> {
+  const res = await fetch(buildApiUrl('/api/users'), { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'No se pudo crear el usuario');
+  }
+  return res.json();
+}
+
+export async function updateUser(id: string, data: Partial<CrmUserFormData>): Promise<CrmUser> {
+  const res = await fetch(buildApiUrl(`/api/users/${id}`), { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(data) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'No se pudo actualizar el usuario');
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// ADJUNTOS DEL SEGUIMIENTO (S3)
+// ---------------------------------------------------------------------------
+
+export async function uploadAttachment(file: File): Promise<ActivityAttachment> {
+  const body = new FormData();
+  body.append('file', file);
+  const headers = getAuthHeaders() as Record<string, string>;
+  delete headers['Content-Type'];
+  const res = await fetch(buildApiUrl('/api/upload/adjunto'), { method: 'POST', headers, body });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `No se pudo subir ${file.name}`);
+  }
+  const data = await res.json();
+  return { url: data.url || data.image_url, name: file.name, content_type: data.content_type || file.type, size_bytes: data.size_bytes ?? file.size };
+}

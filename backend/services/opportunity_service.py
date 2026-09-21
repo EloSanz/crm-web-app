@@ -30,6 +30,15 @@ class OpportunityService:
         data = dict(opp_dict)
         opp_id = str(data["id"])
 
+        # Responsable comercial
+        if data.get("assigned_to"):
+            try:
+                from backend.services.user_service import UserService
+
+                data["assigned_to_name"] = UserService.name_map().get(str(data["assigned_to"]))
+            except Exception:
+                data["assigned_to_name"] = None
+
         # Empresa
         if data.get("company_id"):
             try:

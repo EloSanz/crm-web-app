@@ -45,6 +45,15 @@ class AuthService:
                 is_active=True,
             )
 
+        if email == "gerente@crm.com" and password in ["gerente123", "gerente"]:
+            return UserResponse(
+                id="00000000-0000-0000-0000-000000000003",
+                email="gerente@crm.com",
+                full_name="Responsable Comercial",
+                role="gerente_comercial",
+                is_active=True,
+            )
+
         # 2. Intento contra Supabase Auth si está configurado
         try:
             supabase = get_supabase_client()
