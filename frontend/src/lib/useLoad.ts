@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+/** Los errores de red del navegador llegan en inglés ("Failed to fetch"): se traducen a algo útil. */
+function message(err: unknown): string {
+  if (!(err instanceof Error)) return 'No se pudo conectar con el servidor';
+  if (err.name === 'TypeError' || /failed to fetch|networkerror|load failed/i.test(err.message)) {
+    return 'Sin conexión con el servidor. Revisá tu internet y probá de nuevo.';
+  }
+  return err.message;
+}
+
 /** Carga datos al montar y expone `reload`. El loader debe ser estable (fuera del componente o memorizado). */
 export function useLoad<T>(loader: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
@@ -12,7 +21,7 @@ export function useLoad<T>(loader: () => Promise<T>) {
     let alive = true;
     loader()
       .then((d) => alive && setData(d))
-      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : 'No se pudo conectar con la API'))
+      .catch((err: unknown) => alive && setError(message(err)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -24,7 +33,7 @@ export function useLoad<T>(loader: () => Promise<T>) {
       setData(await loader());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo conectar con la API');
+      setError(message(err));
     }
   }, [loader]);
 

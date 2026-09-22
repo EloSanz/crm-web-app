@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CompanyStatus(str, Enum):
@@ -10,6 +10,16 @@ class CompanyStatus(str, Enum):
     CLIENTE = "cliente"
     INACTIVO = "inactivo"
     NO_CONTACTAR = "no_contactar"
+
+
+def format_cuit(value: str | None) -> str | None:
+    """Con 11 dígitos queda como XX-XXXXXXXX-X; cualquier otro formato se deja como vino."""
+    if value is None:
+        return None
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if len(digits) == 11:
+        return f"{digits[:2]}-{digits[2:10]}-{digits[10]}"
+    return value.strip() or None
 
 
 class CompanyBase(BaseModel):
@@ -26,6 +36,8 @@ class CompanyBase(BaseModel):
     origin: str | None = Field(None, max_length=100, description="Origen de captación comercial")
     notes: str | None = Field(None, description="Observaciones o notas comerciales")
     assigned_to: UUID | None = Field(None, description="ID del ejecutivo comercial responsable")
+
+    _cuit = field_validator("cuit")(format_cuit)
 
 
 class CompanyCreate(CompanyBase):
@@ -44,6 +56,8 @@ class CompanyUpdate(BaseModel):
     origin: str | None = Field(None, max_length=100)
     notes: str | None = None
     assigned_to: UUID | None = None
+
+    _cuit = field_validator("cuit")(format_cuit)
 
 
 class CompanyResponse(CompanyBase):

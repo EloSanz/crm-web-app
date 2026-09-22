@@ -13,6 +13,8 @@ export interface SelectOption {
   hint?: string;
   group?: string;
   icon?: React.ReactNode;
+  /** Visible pero no elegible (ej. empresa inactiva); el motivo va en `hint`. */
+  disabled?: boolean;
 }
 
 interface SelectProps {
@@ -83,6 +85,7 @@ export function Select({
   };
 
   const choose = (opt: SelectOption) => {
+    if (opt.disabled) return;
     onChange(opt.value);
     close();
   };
@@ -209,13 +212,15 @@ export function Select({
                       id={`${listId}-${i}`}
                       role="option"
                       aria-selected={isSel}
+                      aria-disabled={opt.disabled || undefined}
                       data-index={i}
                       onPointerMove={() => active !== i && setActive(i)}
                       onClick={() => choose(opt)}
                       className={clsx(
-                        'flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-[15px]',
-                        i === active ? 'bg-chapa-2' : '',
-                        isSel ? 'font-semibold text-tinta' : 'text-tinta'
+                        'flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-[15px]',
+                        opt.disabled ? 'cursor-not-allowed text-tiza' : 'cursor-pointer text-tinta',
+                        i === active && !opt.disabled ? 'bg-chapa-2' : '',
+                        isSel && 'font-semibold'
                       )}
                     >
                       {opt.icon && <span className="mt-0.5 shrink-0">{opt.icon}</span>}

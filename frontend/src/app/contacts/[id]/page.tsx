@@ -3,8 +3,9 @@
 import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Pencil, Phone, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ContactMenu } from '@/components/contact/ContactMenu';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ButtonLink } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -49,12 +50,7 @@ export default function ContactDetailPage() {
           title={`${c.first_name} ${c.last_name}`}
           actions={
             <>
-              {tel && (
-                <ButtonLink href={tel} variant="secundario">
-                  <Phone className="w-4 h-4" aria-hidden />
-                  Llamar
-                </ButtonLink>
-              )}
+              <ContactMenu contact={c} />
               <ButtonLink href={`/contacts/${c.id}/editar`} variant="secundario">
                 <Pencil className="w-4 h-4" aria-hidden />
                 Editar

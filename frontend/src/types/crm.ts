@@ -83,6 +83,8 @@ export interface Product {
   category: ProductCategory;
   unit: string;
   unit_price: number;
+  wholesale_price?: number | null;
+  wholesale_min_qty?: number | null;
   description?: string | null;
   is_active: boolean;
   is_deleted: boolean;
@@ -96,6 +98,8 @@ export interface ProductFormData {
   category: ProductCategory;
   unit: string;
   unit_price: number;
+  wholesale_price?: number | null;
+  wholesale_min_qty?: number | null;
   description?: string;
   is_active: boolean;
 }
@@ -109,6 +113,11 @@ export interface OpportunityItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  /** Precio minorista de catálogo al cotizar. */
+  list_price?: number | null;
+  price_tier?: PriceTier;
+  /** Descuento del renglón (%). */
+  discount_pct?: number;
   created_at: string;
 }
 
@@ -133,6 +142,10 @@ export interface Opportunity {
   expected_close_date?: string | null;
   delivery_location?: string | null;
   loss_reason?: string | null;
+  /** Descuento general del presupuesto (%). */
+  discount_pct?: number;
+  /** Versión vigente de los materiales (sube con cada renegociación). */
+  current_version?: number;
   items: OpportunityItem[];
   // North Star Metric (NSM)
   last_activity_at?: string | null;
@@ -245,12 +258,48 @@ export interface Stage {
   color: string;
 }
 
+export type PriceTier = 'minorista' | 'mayorista' | 'manual';
+
 export interface OpportunityItemCreateData {
   product_id?: string | null;
   product_name: string;
   unit: string;
   quantity: number;
   unit_price: number;
+  list_price?: number | null;
+  price_tier?: PriceTier;
+  discount_pct?: number;
+}
+
+/** Foto de los materiales y montos en cada renegociación. */
+export interface OpportunityVersion {
+  id: string;
+  opportunity_id: string;
+  version: number;
+  items: Omit<OpportunityItem, 'id' | 'opportunity_id'>[];
+  subtotal: number;
+  discount_pct: number;
+  total: number;
+  note?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
+/** Hito del seguimiento: cambio de etapa o nueva versión de materiales. */
+export interface TimelineEvent {
+  id: string;
+  kind: 'etapa' | 'version';
+  at: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  title: string;
+  detail?: string | null;
+  from_stage_id?: string | null;
+  to_stage_id?: string | null;
+  version?: number | null;
+  total?: number | null;
+  previous_total?: number | null;
 }
 
 export interface OpportunityCreateData {
@@ -258,12 +307,13 @@ export interface OpportunityCreateData {
   company_id?: string | null;
   contact_id?: string | null;
   project_id?: string | null;
-  assigned_to: string;
+  assigned_to?: string;
   stage_id: string;
   status?: 'abierta' | 'ganada' | 'perdida';
   currency?: string;
   expected_close_date?: string | null;
   delivery_location?: string | null;
+  discount_pct?: number;
   items: OpportunityItemCreateData[];
 }
 
@@ -279,7 +329,10 @@ export interface OpportunityUpdateData {
   expected_close_date?: string | null;
   delivery_location?: string | null;
   loss_reason?: string | null;
+  discount_pct?: number;
   items?: OpportunityItemCreateData[];
+  /** Motivo del cambio de materiales; queda guardado en la versión. */
+  version_note?: string | null;
 }
 
 

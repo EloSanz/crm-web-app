@@ -11,13 +11,15 @@ interface KanbanBoardProps {
   stages: Stage[];
   opportunities: Opportunity[];
   onMove: (opp: Opportunity, stage: Stage) => void;
+  /** Total en pesos por columna: sólo admin y responsable comercial (los vendedores no ven indicadores). */
+  showTotals?: boolean;
 }
 
 /**
  * El embudo: las cuatro etapas abiertas entran enteras en escritorio y se deslizan en el celular.
  * Va dentro de <BoardDnd>, que maneja el arrastre y los destinos Vendidos / Perdidos.
  */
-export function KanbanBoard({ stages, opportunities, onMove }: KanbanBoardProps) {
+export function KanbanBoard({ stages, opportunities, onMove, showTotals = true }: KanbanBoardProps) {
   const openStages = stages.filter((s) => !s.is_closed_won && !s.is_closed_lost);
 
   return (
@@ -50,7 +52,7 @@ export function KanbanBoard({ stages, opportunities, onMove }: KanbanBoardProps)
                         {items.length}
                       </span>
                     </header>
-                    <p className="cifra px-3.5 pb-3 pl-[42px] text-sm font-semibold text-tiza">{formatARSCompact(total)}</p>
+                    {showTotals ? <p className="cifra px-3.5 pb-3 pl-[42px] text-sm font-semibold text-tiza">{formatARSCompact(total)}</p> : <div className="pb-2" />}
                     <div className="flex min-h-[120px] flex-col gap-2 px-2 pb-2 lg:max-h-[calc(100dvh-340px)] lg:overflow-y-auto">
                       {items.length === 0 ? (
                         <p

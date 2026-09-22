@@ -20,6 +20,8 @@ import { fetchOpportunities, fetchStages } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { healthOf, HEALTH_META, type Health } from '@/lib/health';
 import { formatARSCompact, sentenceCase } from '@/lib/format';
+import { useCurrentUser } from '@/lib/useUser';
+import { isManager } from '@/lib/roles';
 
 const load = async () => {
   const [opportunities, stages] = await Promise.all([fetchOpportunities(), fetchStages()]);
@@ -55,6 +57,7 @@ export default function OpportunitiesPage() {
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('all');
   const [health, setHealth] = useState<HealthFilter>('all');
+  const manager = isManager(useCurrentUser());
 
   const summary = useMemo(() => {
     const counts: Record<Health, { n: number; amount: number }> = {
@@ -113,7 +116,7 @@ export default function OpportunitiesPage() {
                 setStage('all');
               }}
               label={`Abiertos · ${summary.open}`}
-              value={formatARSCompact(summary.openTotal)}
+              value={manager ? formatARSCompact(summary.openTotal) : undefined}
             />
             {(['healthy', 'warning', 'stale'] as Health[]).map((h) => (
               <HealthButton
@@ -121,7 +124,7 @@ export default function OpportunitiesPage() {
                 active={health === h}
                 onClick={() => setHealth(health === h ? 'all' : h)}
                 label={`${HEALTH_META[h].label} · ${summary.counts[h].n}`}
-                value={formatARSCompact(summary.counts[h].amount)}
+                value={manager ? formatARSCompact(summary.counts[h].amount) : undefined}
                 color={PUNTA_COLORS[h].base}
               />
             ))}
@@ -143,7 +146,7 @@ export default function OpportunitiesPage() {
                           setView('lista');
                         }}
                         label={`${won ? 'Vendidos' : 'Perdidos'} · ${items.length}`}
-                        value={formatARSCompact(items.reduce((a, o) => a + Number(o.estimated_value || 0), 0))}
+                        value={manager ? formatARSCompact(items.reduce((a, o) => a + Number(o.estimated_value || 0), 0)) : undefined}
                         icon={won ? <Trophy className="w-3 h-3 text-verde" aria-hidden /> : <XCircle className="w-3 h-3 text-tiza" aria-hidden />}
                       />
                     )}
@@ -206,7 +209,7 @@ export default function OpportunitiesPage() {
             }
           />
         ) : view === 'tablero' ? (
-          <KanbanBoard stages={data.stages} opportunities={filtered} onMove={moveTo} />
+          <KanbanBoard stages={data.stages} opportunities={filtered} onMove={moveTo} showTotals={manager} />
         ) : filtered.length === 0 ? (
           <EmptyState illustration="presupuestos" title="Nada con esos filtros" />
         ) : (
@@ -234,7 +237,8 @@ function HealthButton({
   waiting?: boolean;
   onClick: () => void;
   label: string;
-  value: string;
+  /** Monto del filtro: sólo para admin y responsable comercial (los vendedores no ven indicadores). */
+  value?: string;
   color?: string;
   icon?: React.ReactNode;
 }) {
@@ -259,7 +263,7 @@ function HealthButton({
         {icon}
         <span className="truncate">{label}</span>
       </span>
-      <span className="cifra block truncate text-[15px] font-extrabold">{value}</span>
+      {value && <span className="cifra block truncate text-[15px] font-extrabold">{value}</span>}
     </button>
   );
 }

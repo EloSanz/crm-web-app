@@ -7,7 +7,10 @@ from backend.controllers import (
     auth_controller,
     company_controller,
     contact_controller,
+    dev_controller,
     health_controller,
+    message_controller,
+    metrics_controller,
     opportunity_controller,
     product_controller,
     project_controller,
@@ -56,7 +59,8 @@ async def require_api_key_and_auth(request, call_next):
         return await call_next(request)
 
     # 2. Rutas de salud y documentación del sistema
-    public_paths = ["/health", "/api/health", "/docs", "/openapi.json", "/redoc"]
+    # El webhook de WhatsApp lo llama Meta (sin API Key ni sesión); se valida con su firma.
+    public_paths = ["/health", "/api/health", "/docs", "/openapi.json", "/redoc", "/api/whatsapp/webhook"]
     if path in public_paths:
         return await call_next(request)
 
@@ -115,6 +119,9 @@ app.include_router(opportunity_controller.stages_router)
 app.include_router(upload_controller.router)
 app.include_router(user_controller.router)
 app.include_router(activity_controller.router)
+app.include_router(metrics_controller.router)
+app.include_router(message_controller.router)
+app.include_router(dev_controller.router)
 
 
 if __name__ == "__main__":

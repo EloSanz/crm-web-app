@@ -4,7 +4,7 @@ import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import clsx from 'clsx';
-import { Check, Phone, Trophy, XCircle } from 'lucide-react';
+import { Check, Pencil, Trophy, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -12,6 +12,8 @@ import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { Punta, HealthChip } from '@/components/punta/Punta';
 import { ActivityLog } from '@/components/opportunities/ActivityLog';
+import { VersionHistory } from '@/components/opportunities/VersionHistory';
+import { ContactMenu } from '@/components/contact/ContactMenu';
 import { useStageTransitions } from '@/components/opportunities/useStageTransitions';
 import {
   fetchCompany,
@@ -19,6 +21,8 @@ import {
   fetchContact,
   fetchOpportunity,
   fetchOpportunityActivities,
+  fetchOpportunityTimeline,
+  fetchOpportunityVersions,
   fetchStages,
   fetchUsers,
   updateOpportunity,
@@ -30,18 +34,20 @@ import { isManager } from '@/lib/roles';
 import type { Contact } from '@/types/crm';
 import { useLoad } from '@/lib/useLoad';
 import { healthOf } from '@/lib/health';
-import { formatARS, formatDate, formatQty, sentenceCase, shortRef, telHref } from '@/lib/format';
+import { formatARS, formatDate, formatQty, sentenceCase, shortRef } from '@/lib/format';
 
 export default function OpportunityDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
 
   const load = useCallback(async () => {
-    const [opp, stages, activities, users] = await Promise.all([
+    const [opp, stages, activities, users, events, versions] = await Promise.all([
       fetchOpportunity(id),
       fetchStages(),
       fetchOpportunityActivities(id).catch(() => []),
       fetchUsers().catch(() => []),
+      fetchOpportunityTimeline(id).catch(() => []),
+      fetchOpportunityVersions(id).catch(() => []),
     ]);
     const [contact, company, companyContacts] = await Promise.all([
       opp.contact_id ? fetchContact(opp.contact_id).catch(() => null) : null,
@@ -53,9 +59,13 @@ export default function OpportunityDetailPage() {
     return {
       opp,
       activities,
+      events,
+      versions,
       users,
       contacts,
       stages: [...stages].sort((a, b) => a.position - b.position),
+      contact,
+      company,
       phone: contact?.phone || company?.phone || null,
     };
   }, [id]);
@@ -101,14 +111,16 @@ export default function OpportunityDetailPage() {
     );
   }
 
-  const { opp, stages, activities, phone, users, contacts } = data;
+  const { opp, stages, activities, events, versions, phone, users, contacts, contact, company } = data;
+  const itemsSubtotal = opp.items.reduce((a, it) => a + Number(it.subtotal), 0);
+  const globalDiscount = Number(opp.discount_pct ?? 0);
+  const showVersions = () => document.getElementById('versiones')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const health = healthOf(opp);
   const isOpen = opp.status === 'abierta';
   const openStages = stages.filter((s) => !s.is_closed_won && !s.is_closed_lost);
   const currentIdx = openStages.findIndex((s) => s.id === opp.stage_id);
   const won = stages.find((s) => s.is_closed_won);
   const lost = stages.find((s) => s.is_closed_lost);
-  const tel = telHref(phone);
   const clientHref = opp.company_id ? `/companies/${opp.company_id}` : opp.contact_id ? `/contacts/${opp.contact_id}` : null;
 
   return (
@@ -131,12 +143,7 @@ export default function OpportunityDetailPage() {
           actions={
             isOpen ? (
               <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-                {tel && (
-                  <ButtonLink href={tel} variant="secundario">
-                    <Phone className="w-4 h-4" aria-hidden />
-                    Llamar
-                  </ButtonLink>
-                )}
+                <ContactMenu opportunityId={opp.id} contact={contact} company={company} phone={phone} email={contact?.email ?? company?.email ?? null} onLogged={() => reload()} />
                 {lost && (
                   <Button variant="secundario" className="text-rojo-tinta" onClick={() => moveTo(opp, lost)}>
                     <XCircle className="w-4 h-4" aria-hidden />
@@ -250,9 +257,18 @@ export default function OpportunityDetailPage() {
             </section>
 
             <section aria-labelledby="materiales" className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
-              <h2 id="materiales" className="titular px-5 pt-5 text-lg">
-                Materiales
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
+                <h2 id="materiales" className="titular text-lg">
+                  Materiales
+                  {(opp.current_version ?? 1) > 1 && <span className="ml-2 text-sm font-semibold text-tiza">versión {opp.current_version}</span>}
+                </h2>
+                {isOpen && (
+                  <ButtonLink href={`/opportunities/${opp.id}/editar`} variant="secundario" size="sm">
+                    <Pencil className="w-4 h-4" aria-hidden />
+                    Editar materiales
+                  </ButtonLink>
+                )}
+              </div>
               {opp.items.length === 0 ? (
                 <p className="px-5 pb-5 pt-2 text-[15px] text-tiza">Sin materiales cargados.</p>
               ) : (
@@ -262,24 +278,44 @@ export default function OpportunityDetailPage() {
                       <li key={it.id} className="flex items-start gap-3 px-5 py-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-[15px] font-semibold leading-snug break-words">{it.product_name}</p>
-                          <p className="cifra text-[13px] text-tiza">
-                            {formatQty(it.quantity, it.unit)} × {formatARS(it.unit_price)}
+                          <p className="cifra flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-tiza">
+                            <span>
+                              {formatQty(it.quantity, it.unit)} × {formatARS(it.unit_price)}
+                            </span>
+                            {it.price_tier === 'mayorista' && <span className="rounded-full bg-pavonado px-2 py-px text-[12px] font-semibold text-white">Mayorista</span>}
+                            {Number(it.discount_pct ?? 0) > 0 && <span className="font-semibold text-tinta">−{Number(it.discount_pct)}%</span>}
                           </p>
                         </div>
                         <span className="cifra shrink-0 text-[15px] font-bold">{formatARS(it.subtotal)}</span>
                       </li>
                     ))}
                   </ul>
-                  <div className="flex items-center justify-between border-t border-linea bg-chapa-2 px-5 py-3.5">
-                    <span className="font-semibold">Total</span>
-                    <span className="cifra text-lg font-extrabold">{formatARS(opp.estimated_value)}</span>
+                  <div className="space-y-1.5 border-t border-linea bg-chapa-2 px-5 py-3.5">
+                    {globalDiscount > 0 && (
+                      <>
+                        <p className="flex items-center justify-between text-[15px]">
+                          <span className="text-tiza">Subtotal</span>
+                          <span className="cifra">{formatARS(itemsSubtotal)}</span>
+                        </p>
+                        <p className="flex items-center justify-between text-[15px]">
+                          <span className="text-tiza">Descuento {globalDiscount}%</span>
+                          <span className="cifra">− {formatARS(itemsSubtotal - Number(opp.estimated_value))}</span>
+                        </p>
+                      </>
+                    )}
+                    <p className="flex items-center justify-between">
+                      <span className="font-semibold">Total</span>
+                      <span className="cifra text-lg font-extrabold">{formatARS(opp.estimated_value)}</span>
+                    </p>
                   </div>
                 </>
               )}
             </section>
+
+            {versions.length > 1 && <VersionHistory versions={versions} />}
           </div>
 
-          <ActivityLog opp={opp} activities={activities} contacts={contacts} onSaved={reload} />
+          <ActivityLog opp={opp} activities={activities} events={events} contacts={contacts} onSaved={reload} onShowVersions={versions.length > 1 ? showVersions : undefined} />
         </div>
       </div>
       {dialogs}

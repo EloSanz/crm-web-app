@@ -8,6 +8,7 @@ import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
+import { ReturnToQuoteDialog } from '@/components/opportunities/ReturnToQuoteDialog';
 import { PROJECT_STATUS, PROJECT_TYPES } from '@/lib/catalogs';
 
 const STATUS_ORDER: ProjectStatus[] = ['en_curso', 'planificacion', 'frenada', 'finalizada'];
@@ -27,6 +28,7 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
+  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [data, setData] = useState<ProjectFormData>({
     name: project?.name ?? '',
     company_id: project?.company_id ?? presetCompanyId ?? null,
@@ -47,7 +49,12 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
     try {
       const saved = project ? await updateProject(project.id, data) : await createProject(data);
       toast.success(project ? 'Cambios guardados' : 'Obra registrada', data.name);
-      router.push(returnTo && !project ? `${returnTo}?borrador=1&nueva_obra=${saved.id}` : '/projects');
+      // Vino desde un presupuesto a medio armar: preguntar si vuelve (con la obra nueva elegida).
+      if (returnTo && !project) {
+        setCreated({ id: saved.id, name: data.name });
+        return;
+      }
+      router.push('/projects');
     } catch (err) {
       toast.error('No se pudo guardar', err instanceof Error ? err.message : undefined);
       setSaving(false);
@@ -109,6 +116,14 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
         submitLabel={project ? 'Guardar cambios' : returnTo ? 'Registrar y volver al presupuesto' : 'Registrar obra'}
         saving={saving}
       />
+      {created && returnTo && (
+        <ReturnToQuoteDialog
+          what="obra"
+          name={created.name}
+          onBack={() => router.push(`${returnTo}?borrador=1&nueva_obra=${created.id}`)}
+          onStay={() => router.push('/projects')}
+        />
+      )}
     </form>
   );
 }

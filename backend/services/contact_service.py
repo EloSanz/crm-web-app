@@ -14,6 +14,16 @@ logger = logging.getLogger("crm.services.contact")
 _mock_contacts: dict[str, dict] = {}
 
 
+def _digits(value: str | None) -> str:
+    return "".join(ch for ch in (value or "") if ch.isdigit())
+
+
+def _phone_key(value: str | None) -> str:
+    """Últimos 10 dígitos: iguala +54 9 11 5566-7788 con 11 5566-7788."""
+    digits = _digits(value)
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
 class ContactService:
     """Servicio de negocio para Contactos / Maestros Mayores de Obra."""
 
@@ -108,6 +118,33 @@ class ContactService:
         )
 
     @classmethod
+    def ensure_unique(
+        cls,
+        document_number: str | None,
+        phone: str | None,
+        email: str | None,
+        exclude_id: UUID | None = None,
+    ) -> None:
+        """Corta con 409 si otro contacto activo ya tiene el mismo DNI, teléfono o correo."""
+        checks = [
+            ("DNI", _digits(document_number), lambda c: _digits(c.document_number)),
+            ("Teléfono", _phone_key(phone), lambda c: _phone_key(c.phone)),
+            ("Correo", (email or "").strip().lower(), lambda c: (c.email or "").strip().lower()),
+        ]
+        checks = [(label, value, key) for label, value, key in checks if value]
+        if not checks:
+            return
+        for other in cls.get_contacts(limit=500):
+            if exclude_id and str(other.id) == str(exclude_id):
+                continue
+            for label, value, key in checks:
+                if key(other) == value:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"{label} ya registrado en {other.first_name} {other.last_name}",
+                    )
+
+    @classmethod
     def create_contact(
         cls,
         data: ContactCreate,
@@ -117,6 +154,7 @@ class ContactService:
         # Si tiene company_id, validar que exista
         if data.company_id:
             CompanyService.get_company_by_id(data.company_id)
+        cls.ensure_unique(data.document_number, data.phone, data.email)
 
         now = datetime.now(timezone.utc)
         contact_id = uuid4()
@@ -170,6 +208,20 @@ class ContactService:
         update_payload = data.model_dump(exclude_unset=True)
         if not update_payload:
             return existing
+
+        # Sólo se valida lo que cambia: duplicados viejos no bloquean ediciones de otros campos.
+        def changed(field: str, key) -> str | None:
+            if field not in update_payload:
+                return None
+            new = update_payload.get(field)
+            return new if key(new) != key(getattr(existing, field)) else None
+
+        cls.ensure_unique(
+            changed("document_number", _digits),
+            changed("phone", _phone_key),
+            changed("email", lambda v: (v or "").strip().lower()),
+            exclude_id=contact_id,
+        )
 
         now = datetime.now(timezone.utc)
         update_payload["updated_at"] = now.isoformat()

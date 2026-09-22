@@ -98,3 +98,22 @@ export function formatQty(quantity: number | string, unit: string | null | undef
   if (n !== 1) word = /[aeiouáéíóú]$/i.test(word) ? `${word}s` : `${word}es`;
   return `${qty} ${word}${rest ? ` de ${rest}` : ''}`;
 }
+
+/** CUIT mientras se escribe: sólo dígitos (hasta 11) con los guiones en su lugar → 30-71234567-8. */
+export function formatCuit(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 10) return `${d.slice(0, 2)}-${d.slice(2)}`;
+  return `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}`;
+}
+
+/** Dígito verificador del CUIT (módulo 11 de AFIP). */
+export function isValidCuit(value: string): boolean {
+  const d = value.replace(/\D/g, '');
+  if (d.length !== 11) return false;
+  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((acc, w, i) => acc + w * Number(d[i]), 0);
+  const check = 11 - (sum % 11);
+  const expected = check === 11 ? 0 : check;
+  return expected !== 10 && expected === Number(d[10]);
+}

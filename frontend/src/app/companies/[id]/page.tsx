@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Pencil, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ContactMenu } from '@/components/contact/ContactMenu';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ButtonLink } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -49,6 +50,7 @@ export default function CompanyDetailPage() {
           title={c.name}
           actions={
             <>
+              <ContactMenu company={c} />
               <ButtonLink href={`/companies/${c.id}/editar`} variant="secundario">
                 <Pencil className="w-4 h-4" aria-hidden />
                 Editar

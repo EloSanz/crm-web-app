@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
 import { CLIENT_STATUS, ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { formatCuit, isValidCuit } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as CompanyStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
 const ORIGINS = ORIGIN_OPTIONS.map((o) => ({ value: o, label: o }));
@@ -18,9 +19,10 @@ export function CompanyForm({ company }: { company?: Company | null }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cuitError, setCuitError] = useState<string | null>(null);
   const [data, setData] = useState<CompanyFormData>({
     name: company?.name ?? '',
-    cuit: company?.cuit ?? '',
+    cuit: company?.cuit ? formatCuit(company.cuit) : '',
     industry: company?.industry ?? '',
     email: company?.email ?? '',
     phone: company?.phone ?? '',
@@ -35,6 +37,8 @@ export function CompanyForm({ company }: { company?: Company | null }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!data.name.trim()) return setError('Poné la razón social');
+    const cuitMsg = cuitProblem(data.cuit || '');
+    if (cuitMsg) return setCuitError(cuitMsg);
     setSaving(true);
     try {
       const saved = company ? await updateCompany(company.id, data) : await createCompany(data);
@@ -54,8 +58,28 @@ export function CompanyForm({ company }: { company?: Company | null }) {
             <Input id={id} aria-invalid={invalid} value={data.name} onChange={(e) => set('name', e.target.value)} placeholder="Construcciones del Oeste SRL" />
           )}
         </Field>
-        <Field label="CUIT">
-          {({ id }) => <Input id={id} className="cifra" value={data.cuit || ''} onChange={(e) => set('cuit', e.target.value)} placeholder="30-12345678-9" />}
+        <Field
+          label="CUIT"
+          error={cuitError ?? undefined}
+          hint={!cuitError && (data.cuit || '').replace(/\D/g, '').length === 11 && !isValidCuit(data.cuit || '') ? 'Revisalo: el dígito verificador no coincide' : undefined}
+        >
+          {({ id, invalid }) => (
+            <Input
+              id={id}
+              aria-invalid={invalid}
+              className="cifra"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={13}
+              value={data.cuit || ''}
+              onChange={(e) => {
+                set('cuit', formatCuit(e.target.value));
+                setCuitError(null);
+              }}
+              onBlur={() => setCuitError(cuitProblem(data.cuit || ''))}
+              placeholder="30-12345678-9"
+            />
+          )}
         </Field>
         <Field label="Rubro">
           {({ id }) => <Input id={id} value={data.industry || ''} onChange={(e) => set('industry', e.target.value)} placeholder="Estructuras, viviendas" />}
@@ -82,4 +106,11 @@ export function CompanyForm({ company }: { company?: Company | null }) {
       <FormActions cancelHref={company ? `/companies/${company.id}` : '/companies'} submitLabel={company ? 'Guardar cambios' : 'Registrar empresa'} saving={saving} />
     </form>
   );
+}
+
+/** Vacío es válido (el CUIT es opcional); si está, tiene que tener sus 11 dígitos. */
+function cuitProblem(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (!digits || digits.length === 11) return null;
+  return 'Faltan dígitos: son 11';
 }

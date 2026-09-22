@@ -203,3 +203,71 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Indicadores · gráficos (src/components/charts)
+ * Las barras crecen desde su base, las líneas se trazan y las celdas aparecen, escalonadas de a
+ * 30–60 ms, con salida suave y nunca más de ~700 ms. Con "reducir movimiento" no hay animación:
+ * las marcas se dibujan directamente en su estado final.
+ * ------------------------------------------------------------------------- */
+@keyframes graf-crecer-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes graf-crecer-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes graf-trazar {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes graf-aparecer {
+  from {
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .graf-col {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: graf-crecer-y 480ms var(--ease-salida) both;
+  }
+  .graf-col-abajo {
+    transform-origin: 50% 0%;
+  }
+  .graf-barra {
+    transform-origin: 0 50%;
+    animation: graf-crecer-x 480ms var(--ease-salida) both;
+  }
+  .graf-linea {
+    stroke-dasharray: 1;
+    animation: graf-trazar 700ms cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+  .graf-fundido {
+    animation: graf-aparecer 420ms ease-out both;
+  }
+  .graf-celda {
+    animation: graf-aparecer 320ms ease-out both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graf-col,
+  .graf-barra,
+  .graf-linea,
+  .graf-fundido,
+  .graf-celda {
+    animation: none !important;
+  }
+  .graf-linea {
+    stroke-dasharray: none;
+  }
+}

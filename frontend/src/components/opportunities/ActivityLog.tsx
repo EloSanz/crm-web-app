@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
-  ChevronLeft,
-  ChevronRight,
+  ArrowUp,
   ClipboardList,
   FileText,
+  Flag,
   ImageIcon,
+  Layers,
   Loader2,
   Mail,
   MapPin,
@@ -18,7 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { Activity, ActivityAttachment, ActivityType, Contact, Opportunity } from '@/types/crm';
+import type { Activity, ActivityAttachment, ActivityType, Contact, Opportunity, TimelineEvent } from '@/types/crm';
 import { createActivity, uploadAttachment } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Field';
@@ -26,7 +27,7 @@ import { Select } from '@/components/ui/Select';
 import { DatePicker, toISODate } from '@/components/ui/DatePicker';
 import { useToast } from '@/components/ui/Toast';
 import { ACTIVITY_TYPES } from '@/lib/catalogs';
-import { formatDateTime } from '@/lib/format';
+import { formatARSCompact } from '@/lib/format';
 import { AttachmentViewer, formatBytes, isImage } from './AttachmentViewer';
 
 export const ACTIVITY_ICON: Record<ActivityType, React.ComponentType<{ className?: string }>> = {
@@ -40,20 +41,33 @@ export const ACTIVITY_ICON: Record<ActivityType, React.ComponentType<{ className
   nota: FileText,
 };
 
-const SHORT: Record<ActivityType, string> = {
-  llamada: 'Llamada',
-  whatsapp: 'WhatsApp',
-  visita_obra: 'Visita',
-  mostrador: 'Local',
-  email: 'Correo',
-  presupuesto: 'Envío',
-  reunion: 'Reunión',
-  nota: 'Nota',
+const PLACEHOLDER: Record<ActivityType, string> = {
+  llamada: 'Llamada: ¿qué se habló?',
+  whatsapp: 'WhatsApp: ¿qué respondió?',
+  visita_obra: 'Visita a la obra: ¿qué viste?',
+  mostrador: 'En el local: ¿qué pidió?',
+  email: 'Correo: ¿qué se envió?',
+  presupuesto: 'Envío del presupuesto: ¿por dónde?',
+  reunion: 'Reunión: ¿qué se acordó?',
+  nota: 'Nota interna',
 };
 
-const PAGE = 5;
+const STEP = 8;
 const MAX_MB = 10;
 const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
+
+const TIME = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
+const DAY = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
+const DAY_YEAR = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function dayLabel(d: Date): string {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Hoy';
+  if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
+  return (d.getFullYear() === today.getFullYear() ? DAY : DAY_YEAR).format(d).replace('.', '');
+}
 
 interface Pending {
   key: string;
@@ -62,15 +76,20 @@ interface Pending {
   result?: ActivityAttachment;
 }
 
+type Entry = { key: string; at: Date; order: number } & ({ kind: 'actividad'; activity: Activity } | { kind: 'hito'; event: TimelineEvent });
+
 interface ActivityLogProps {
   opp: Opportunity;
   activities: Activity[];
+  events?: TimelineEvent[];
   contacts: Contact[];
   onSaved: () => Promise<void> | void;
+  /** Abre el historial de versiones (lo maneja la página del presupuesto). */
+  onShowVersions?: () => void;
 }
 
-/** Seguimiento: registrar lo que pasó (con quién, cuándo y con archivos) y recorrer el historial paginado. */
-export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogProps) {
+/** Seguimiento: registrar lo que pasó (con quién, cuándo y con archivos) y recorrer el historial con sus hitos. */
+export function ActivityLog({ opp, activities, events = [], contacts, onSaved, onShowVersions }: ActivityLogProps) {
   const toast = useToast();
   const [type, setType] = useState<ActivityType>('llamada');
   const [summary, setSummary] = useState('');
@@ -79,31 +98,46 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
   const [pending, setPending] = useState<Pending[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [page, setPage] = useState(0);
-  const [viewing, setViewing] = useState<ActivityAttachment | null>(null);
+  const [shown, setShown] = useState(STEP);
+  const [away, setAway] = useState(false);
+  const [viewing, setViewing] = useState<{ files: ActivityAttachment[]; index: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const today = toISODate(new Date());
 
-  // Siempre del más nuevo al más viejo; ante la misma fecha, el último cargado primero.
-  const sorted = useMemo(
-    () =>
-      [...activities].sort(
-        (a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ),
-    [activities]
-  );
-  const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
-  const current = Math.min(page, pages - 1);
-  const visible = sorted.slice(current * PAGE, current * PAGE + PAGE);
+  // Todo junto, del más nuevo al más viejo: lo registrado y los hitos (etapas, versiones).
+  const entries = useMemo<Entry[]>(() => {
+    const list: Entry[] = [
+      ...activities.map((a) => ({ key: `a-${a.id}`, at: new Date(a.activity_date), order: new Date(a.created_at).getTime(), kind: 'actividad' as const, activity: a })),
+      ...events.map((e) => ({ key: `h-${e.id}`, at: new Date(e.at), order: new Date(e.at).getTime(), kind: 'hito' as const, event: e })),
+    ];
+    return list.sort((x, y) => y.at.getTime() - x.at.getTime() || y.order - x.order);
+  }, [activities, events]);
+
+  const total = entries.length;
+  const visible = entries.slice(0, shown);
+  const done = shown >= total;
   const contactName = (id?: string | null) => {
     const c = id ? contacts.find((x) => x.id === id) : null;
     return c ? `${c.first_name} ${c.last_name}` : null;
   };
   const uploading = pending.some((p) => p.status === 'subiendo');
 
+  // Carga progresiva al llegar al final del historial (scroll propio de la lista).
+  useEffect(() => {
+    const root = listRef.current;
+    const target = sentinelRef.current;
+    if (!root || !target || done) return;
+    const io = new IntersectionObserver((items) => items[0]?.isIntersecting && setShown((n) => n + STEP), { root, rootMargin: '160px' });
+    io.observe(target);
+    return () => io.disconnect();
+  }, [done, total]);
+
+  const toLatest = () => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
   const addFiles = (list: FileList | File[]) => {
-    const files = Array.from(list);
-    for (const file of files) {
+    for (const file of Array.from(list)) {
       if (!ACCEPT.split(',').includes(file.type)) {
         toast.warning('Formato no admitido', `${file.name}: subí fotos (JPG, PNG, WEBP) o PDF.`);
         continue;
@@ -140,7 +174,8 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
       });
       setSummary('');
       setPending([]);
-      setPage(0);
+      setShown(STEP);
+      listRef.current?.scrollTo({ top: 0 });
       toast.success('Contacto registrado', 'El seguimiento quedó al día.');
       await onSaved();
     } catch (err) {
@@ -174,14 +209,14 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
             setDragOver(false);
             addFiles(e.dataTransfer.files);
           }}
-          className={clsx('@container relative mt-4 space-y-3.5 rounded-xl transition-shadow', dragOver && 'shadow-[0_0_0_2px_var(--color-pavonado)]')}
+          className={clsx('@container relative mt-3 space-y-3 rounded-xl transition-shadow', dragOver && 'shadow-[0_0_0_2px_var(--color-pavonado)]')}
         >
           {dragOver && (
             <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center rounded-xl bg-chapa/90 text-[15px] font-semibold">
               Soltá los archivos para adjuntarlos
             </div>
           )}
-          <div role="radiogroup" aria-label="Tipo de contacto" className="grid grid-cols-3 gap-1.5 @[20rem]:grid-cols-4">
+          <div role="radiogroup" aria-label="Tipo de contacto" className="grid grid-cols-8 gap-1">
             {ACTIVITY_TYPES.map((t) => {
               const Icon = ACTIVITY_ICON[t.value];
               const active = type === t.value;
@@ -195,20 +230,19 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
                   title={t.label}
                   onClick={() => setType(t.value)}
                   className={clsx(
-                    'flex min-w-0 flex-col items-center gap-1 rounded-[10px] border px-0.5 py-2 text-[12px] font-semibold tracking-[-0.01em] transition-colors cursor-pointer',
+                    'flex h-10 min-w-0 items-center justify-center rounded-[10px] border transition-colors cursor-pointer',
                     active ? 'border-pavonado bg-pavonado text-white' : 'border-linea text-tinta hover:border-linea-fuerte'
                   )}
                 >
-                  <Icon className="w-4.5 h-4.5 shrink-0" />
-                  <span className="max-w-full truncate">{SHORT[t.value]}</span>
+                  <Icon className="w-4.5 h-4.5" />
                 </button>
               );
             })}
           </div>
-          <Field label="Qué pasó">
-            {({ id }) => <Input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Ej.: confirmó la losa para el lunes" />}
+          <Field label={ACTIVITY_TYPES.find((t) => t.value === type)?.label ?? 'Qué pasó'}>
+            {({ id }) => <Input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder={PLACEHOLDER[type]} />}
           </Field>
-          <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 @[30rem]:grid-cols-2">
             <Field label="Con quién">
               {({ id }) => (
                 <Select
@@ -236,7 +270,7 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
                   )}
                 >
                   {p.status === 'subiendo' ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 shrink-0" />}
-                  <span className="min-w-0 max-w-[180px] truncate font-medium">{p.file.name}</span>
+                  <span className="min-w-0 max-w-[160px] truncate font-medium">{p.file.name}</span>
                   <span className="shrink-0 text-tiza">{p.status === 'error' ? 'falló' : formatBytes(p.file.size)}</span>
                   <button
                     type="button"
@@ -266,7 +300,7 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
             />
             <Button variant="secundario" onClick={() => fileRef.current?.click()}>
               <Paperclip className="w-4 h-4" aria-hidden />
-              Adjuntar
+              {pending.length ? `Adjuntar (${pending.length})` : 'Adjuntar'}
             </Button>
             <Button type="submit" className="ml-auto" isLoading={saving} disabled={summary.trim().length < 2 || uploading}>
               {uploading ? 'Subiendo…' : 'Registrar'}
@@ -275,84 +309,142 @@ export function ActivityLog({ opp, activities, contacts, onSaved }: ActivityLogP
         </form>
       </div>
 
-      <div className="border-t border-linea">
-        {sorted.length === 0 ? (
+      <div className="relative border-t border-linea">
+        {total === 0 ? (
           <p className="px-5 py-6 text-[15px] text-tiza">Sin contactos registrados.</p>
         ) : (
           <>
-            <ol className="max-h-[440px] space-y-4 overflow-y-auto overscroll-contain px-5 py-5" aria-label="Historial de contactos">
-              {visible.map((a) => {
-                const Icon = ACTIVITY_ICON[a.activity_type] ?? FileText;
-                const who = contactName(a.contact_id);
-                return (
-                  <li key={a.id} className="flex gap-3">
-                    <span className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full border border-linea bg-chapa text-tinta">
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-semibold leading-snug break-words">{a.summary}</p>
-                      {a.description && <p className="mt-0.5 whitespace-pre-line text-sm leading-snug text-tiza break-words">{a.description}</p>}
-                      <p className="mt-1 text-[13px] text-tiza">
-                        {formatDateTime(a.activity_date)} · {a.user_name || 'Vendedor'}
-                        {who && <> · con {who}</>}
-                      </p>
-                      {a.attachments && a.attachments.length > 0 && (
-                        <ul className="mt-2 flex flex-wrap gap-2">
-                          {a.attachments.map((f) => (
-                            <li key={f.url}>
-                              <button
-                                type="button"
-                                onClick={() => setViewing(f)}
-                                className="group flex items-center gap-2 overflow-hidden rounded-lg border border-linea bg-chapa-2 pr-2.5 text-left text-[13px] font-medium hover:border-linea-fuerte cursor-pointer"
-                                aria-label={`Ver ${f.name}`}
-                              >
-                                <Thumb file={f} />
-                                <span className="min-w-0 max-w-[160px] truncate">{f.name}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+            <div
+              ref={listRef}
+              onScroll={(e) => setAway(e.currentTarget.scrollTop > 240)}
+              className="max-h-[360px] overflow-y-auto overscroll-contain px-5 pb-4"
+              aria-label="Historial del presupuesto"
+              role="region"
+              tabIndex={0}
+            >
+              <ol className="space-y-3.5">
+                {visible.map((entry, i) => {
+                  const label = dayLabel(entry.at);
+                  const header = i === 0 || dayLabel(visible[i - 1].at) !== label;
+                  return (
+                    <li key={entry.key}>
+                      {header && (
+                        <p className="sticky top-0 z-[1] -mx-5 mb-2 bg-chapa/95 px-5 pb-1 pt-3 text-[13px] font-bold text-tiza backdrop-blur-[2px]">{label}</p>
                       )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-            {pages > 1 && (
-              <div className="flex items-center justify-between gap-3 border-t border-linea px-5 py-2.5">
-                <span className="cifra text-sm text-tiza">
-                  {current * PAGE + 1}–{Math.min(sorted.length, current * PAGE + PAGE)} de {sorted.length}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPage(current - 1)}
-                    disabled={current === 0}
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-chapa-2 disabled:opacity-35 cursor-pointer"
-                    aria-label="Más nuevos"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="cifra px-1 text-sm font-semibold">
-                    {current + 1} / {pages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPage(current + 1)}
-                    disabled={current >= pages - 1}
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-chapa-2 disabled:opacity-35 cursor-pointer"
-                    aria-label="Más viejos"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                      {entry.kind === 'hito' ? (
+                        <Milestone event={entry.event} onShowVersions={onShowVersions} />
+                      ) : (
+                        <ActivityItem
+                          activity={entry.activity}
+                          who={contactName(entry.activity.contact_id)}
+                          onOpen={(files, index) => setViewing({ files, index })}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              {done ? (
+                total > STEP && <p className="pt-4 text-center text-[13px] text-tiza">Principio del seguimiento</p>
+              ) : (
+                <div ref={sentinelRef} className="flex justify-center pt-4 text-tiza" aria-hidden>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 </div>
-              </div>
+              )}
+            </div>
+            {away && (
+              <button
+                type="button"
+                onClick={toLatest}
+                className="absolute bottom-3 left-1/2 inline-flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full bg-pavonado px-3.5 text-[13px] font-semibold text-white shadow-alzada animate-aparecer cursor-pointer hover:bg-pavonado-3"
+              >
+                <ArrowUp className="w-4 h-4" aria-hidden />
+                Ir al último
+              </button>
             )}
           </>
         )}
       </div>
-      {viewing && <AttachmentViewer file={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <AttachmentViewer files={viewing.files} index={viewing.index} onClose={() => setViewing(null)} />}
     </section>
+  );
+}
+
+function ActivityItem({ activity: a, who, onOpen }: { activity: Activity; who: string | null; onOpen: (files: ActivityAttachment[], index: number) => void }) {
+  const Icon = ACTIVITY_ICON[a.activity_type] ?? FileText;
+  const files = a.attachments ?? [];
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full border border-linea bg-chapa text-tinta">
+        <Icon className="w-3.5 h-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-semibold leading-snug break-words">{a.summary}</p>
+        {a.description && <p className="mt-0.5 whitespace-pre-line text-sm leading-snug text-tiza break-words">{a.description}</p>}
+        <p className="mt-0.5 text-[13px] text-tiza">
+          <span className="cifra">{TIME.format(new Date(a.activity_date))}</span> · {a.user_name || 'Vendedor'}
+          {who && <> · con {who}</>}
+        </p>
+        {files.length > 0 && (
+          <ul className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label={`${files.length} ${files.length === 1 ? 'archivo adjunto' : 'archivos adjuntos'}`}>
+            {files.map((f, i) => (
+              <li key={`${f.url}-${i}`} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onOpen(files, i)}
+                  className="group flex w-[132px] items-center gap-2 overflow-hidden rounded-lg border border-linea bg-chapa-2 pr-2 text-left text-[13px] font-medium hover:border-linea-fuerte cursor-pointer"
+                  aria-label={`Ver ${f.name}`}
+                  title={f.name}
+                >
+                  <Thumb file={f} />
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Hito: cambio de etapa o nueva versión de materiales, con fecha y hora exactas. */
+function Milestone({ event: e, onShowVersions }: { event: TimelineEvent; onShowVersions?: () => void }) {
+  const Icon = e.kind === 'version' ? Layers : Flag;
+  const delta = e.kind === 'version' && e.total != null && e.previous_total != null ? Number(e.total) - Number(e.previous_total) : null;
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-pavonado text-white">
+        <Icon className="w-3.5 h-3.5" />
+      </span>
+      <div className="min-w-0 flex-1 rounded-lg bg-chapa-2 px-3 py-2">
+        <p className="text-[14px] font-bold leading-snug break-words">{e.title}</p>
+        {(e.detail || delta !== null) && (
+          <p className="text-[13px] leading-snug text-tiza break-words">
+            {delta !== null && (
+              <span className="cifra font-semibold text-tinta">
+                {formatARSCompact(e.previous_total)} → {formatARSCompact(e.total)} ({delta >= 0 ? '+' : '−'}
+                {formatARSCompact(Math.abs(delta))})
+              </span>
+            )}
+            {delta !== null && e.detail ? ' · ' : ''}
+            {e.detail}
+          </p>
+        )}
+        <p className="text-[13px] text-tiza">
+          <span className="cifra">{TIME.format(new Date(e.at))}</span>
+          {e.user_name && <> · {e.user_name}</>}
+          {e.kind === 'version' && onShowVersions && (
+            <>
+              {' · '}
+              <button type="button" onClick={onShowVersions} className="font-semibold text-tinta underline decoration-linea-fuerte underline-offset-2 hover:decoration-tinta cursor-pointer">
+                Ver versiones
+              </button>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
   );
 }
 

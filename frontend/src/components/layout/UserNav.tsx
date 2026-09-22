@@ -110,6 +110,11 @@ export function UserMenuCompact() {
               Equipo
             </Link>
           )}
+          {isManager(currentUser) && (
+            <Link role="menuitem" href="/indicadores" onClick={() => setOpen(false)} className="flex h-11 items-center rounded-lg px-3 text-[15px] font-semibold hover:bg-chapa-2">
+              Indicadores
+            </Link>
+          )}
           {isAdmin(currentUser) && (
             <Link role="menuitem" href="/usuarios" onClick={() => setOpen(false)} className="flex h-11 items-center rounded-lg px-3 text-[15px] font-semibold hover:bg-chapa-2">
               Usuarios
