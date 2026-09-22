@@ -8,6 +8,7 @@ import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
+import { ReturnToQuoteDialog } from '@/components/opportunities/ReturnToQuoteDialog';
 import { CLIENT_STATUS, CONTACT_ROLES, ORIGIN_OPTIONS } from '@/lib/catalogs';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as ContactStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
@@ -25,7 +26,8 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
   const router = useRouter();
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<{ first?: string; last?: string }>({});
+  const [errors, setErrors] = useState<{ first?: string; last?: string; dni?: string; phone?: string; email?: string }>({});
+  const [created, setCreated] = useState<Contact | null>(null);
   const [data, setData] = useState<ContactFormData>({
     first_name: contact?.first_name ?? '',
     last_name: contact?.last_name ?? '',
@@ -52,9 +54,18 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
     try {
       const saved = contact ? await updateContact(contact.id, payload) : await createContact(payload);
       toast.success(contact ? 'Cambios guardados' : 'Contacto registrado', fullName);
-      router.push(returnTo && !contact ? `${returnTo}?borrador=1&nuevo_contacto=${saved.id}` : `/contacts/${saved.id ?? contact?.id}`);
+      // Vino desde un presupuesto a medio armar: preguntar si vuelve (con el contacto nuevo elegido).
+      if (returnTo && !contact) {
+        setCreated(saved);
+        return;
+      }
+      router.push(`/contacts/${saved.id ?? contact?.id}`);
     } catch (err) {
-      toast.error('No se pudo guardar', err instanceof Error ? err.message : undefined);
+      const message = err instanceof Error ? err.message : '';
+      // El backend rechaza DNI, teléfono o correo repetidos: se marca el campo.
+      const field = message.startsWith('DNI') ? 'dni' : message.startsWith('Teléfono') ? 'phone' : message.startsWith('Correo') ? 'email' : null;
+      if (field) setErrors((prev) => ({ ...prev, [field]: message }));
+      else toast.error('No se pudo guardar', message || undefined);
       setSaving(false);
     }
   };
@@ -82,14 +93,52 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
         <Field label="Cargo">
           {({ id }) => <Select id={id} value={data.job_title || ''} onChange={(v) => set('job_title', v)} options={roleOptions} />}
         </Field>
-        <Field label="Celular">
-          {({ id }) => <Input id={id} type="tel" inputMode="tel" value={data.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+54 9 11 5566-7788" />}
+        <Field label="Celular" error={errors.phone}>
+          {({ id, invalid }) => (
+            <Input
+              id={id}
+              aria-invalid={invalid}
+              type="tel"
+              inputMode="tel"
+              value={data.phone || ''}
+              onChange={(e) => {
+                set('phone', e.target.value);
+                setErrors((prev) => ({ ...prev, phone: undefined }));
+              }}
+              placeholder="+54 9 11 5566-7788"
+            />
+          )}
         </Field>
-        <Field label="Correo">
-          {({ id }) => <Input id={id} type="email" value={data.email || ''} onChange={(e) => set('email', e.target.value)} placeholder="juan@obras.com" />}
+        <Field label="Correo" error={errors.email}>
+          {({ id, invalid }) => (
+            <Input
+              id={id}
+              aria-invalid={invalid}
+              type="email"
+              value={data.email || ''}
+              onChange={(e) => {
+                set('email', e.target.value);
+                setErrors((prev) => ({ ...prev, email: undefined }));
+              }}
+              placeholder="juan@obras.com"
+            />
+          )}
         </Field>
-        <Field label="DNI">
-          {({ id }) => <Input id={id} inputMode="numeric" className="cifra" value={data.document_number || ''} onChange={(e) => set('document_number', e.target.value)} placeholder="32.123.456" />}
+        <Field label="DNI" error={errors.dni}>
+          {({ id, invalid }) => (
+            <Input
+              id={id}
+              aria-invalid={invalid}
+              inputMode="numeric"
+              className="cifra"
+              value={data.document_number || ''}
+              onChange={(e) => {
+                set('document_number', e.target.value);
+                setErrors((prev) => ({ ...prev, dni: undefined }));
+              }}
+              placeholder="32.123.456"
+            />
+          )}
         </Field>
         <Field label="Estado">
           {({ id }) => <Select id={id} value={data.status} onChange={(v) => set('status', v as ContactStatus)} options={STATUS_OPTIONS} />}
@@ -106,6 +155,14 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
         submitLabel={contact ? 'Guardar cambios' : returnTo ? 'Registrar y volver al presupuesto' : 'Registrar contacto'}
         saving={saving}
       />
+      {created && returnTo && (
+        <ReturnToQuoteDialog
+          what="contacto"
+          name={`${created.first_name} ${created.last_name}`}
+          onBack={() => router.push(`${returnTo}?borrador=1&nuevo_contacto=${created.id}`)}
+          onStay={() => router.push(`/contacts/${created.id}`)}
+        />
+      )}
     </form>
   );
 }

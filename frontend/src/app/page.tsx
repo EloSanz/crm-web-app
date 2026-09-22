@@ -12,6 +12,7 @@ import { Punta } from '@/components/punta/Punta';
 import { fetchActivePipelineMetric, fetchCompanies, fetchContacts, fetchOpportunities, fetchStages } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { useCurrentUser } from '@/lib/useUser';
+import { isManager } from '@/lib/roles';
 import { healthOf, HEALTH_TONE } from '@/lib/health';
 import { formatARS, formatARSCompact, formatDaysAgo, telHref } from '@/lib/format';
 
@@ -53,6 +54,8 @@ export default function HomePage() {
   }, [data]);
 
   const firstName = user?.full_name?.split(' ')[0];
+  // Los vendedores no ven indicadores: su Inicio es la cola de trabajo, sin montos totales.
+  const manager = isManager(user);
 
   return (
     <AppLayout>
@@ -83,6 +86,7 @@ export default function HomePage() {
           />
         ) : (
           <>
+            {manager ? (
             <section aria-label="Pipeline activo" className="sobre-pavonado grano-pavonado overflow-hidden rounded-2xl px-6 py-6 text-white sm:px-8 sm:py-7">
               <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
                 <div className="min-w-0">
@@ -106,6 +110,20 @@ export default function HomePage() {
                 </div>
               </div>
             </section>
+            ) : (
+              <section aria-label="Tu día" className="sobre-pavonado grano-pavonado overflow-hidden rounded-2xl px-6 py-5 text-white sm:px-8">
+                <div className="flex flex-wrap gap-x-10 gap-y-3">
+                  <div>
+                    <p className="text-sm text-niebla">Tus presupuestos abiertos</p>
+                    <p className="cifra titular mt-1 text-[34px] leading-none">{view.open.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-niebla">Para llamar hoy</p>
+                    <p className="cifra titular mt-1 text-[34px] leading-none text-ambar-claro">{view.coolingCount}</p>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
               <section aria-labelledby="embudo" className="rounded-2xl border border-linea bg-chapa p-5 shadow-suave sm:p-6">
@@ -117,7 +135,7 @@ export default function HomePage() {
                     Ver todo
                   </Link>
                 </div>
-                <PipelineFunnel opportunities={data.opportunities} stages={data.stages} />
+                <PipelineFunnel opportunities={data.opportunities} stages={data.stages} showAmounts={manager} />
               </section>
 
               <section aria-labelledby="hoy" className="rounded-2xl border border-linea bg-chapa p-5 shadow-suave sm:p-6">

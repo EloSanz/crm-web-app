@@ -3,13 +3,15 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
-from backend.controllers.permissions import MANAGER_ROLES, require_roles
+from backend.controllers.permissions import MANAGER_ROLES, ensure_owner, owner_scope, require_roles
 from backend.database import get_supabase_client
 from backend.models.opportunity import (
     OpportunityCreate,
     OpportunityResponse,
     OpportunityStatus,
     OpportunityUpdate,
+    OpportunityVersionResponse,
+    TimelineEvent,
 )
 from backend.services.opportunity_service import OpportunityService
 
@@ -41,8 +43,9 @@ def list_opportunities(
     q: str | None = Query(None, description="Búsqueda por título"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    authorization: str | None = Header(None),
 ) -> list[OpportunityResponse]:
-    """Retorna los presupuestos activos ordenados cronológicamente."""
+    """Retorna los presupuestos activos ordenados cronológicamente. Cada vendedor ve sólo los suyos."""
     return OpportunityService.get_opportunities(
         company_id=company_id,
         contact_id=contact_id,
@@ -51,6 +54,7 @@ def list_opportunities(
         q=q,
         limit=limit,
         offset=offset,
+        assigned_to=owner_scope(authorization),
     )
 
 
@@ -64,8 +68,10 @@ def create_opportunity(
     data: OpportunityCreate,
     authorization: str | None = Header(None),
 ) -> OpportunityResponse:
-    """Crea un presupuesto para una obra/cliente con sus materiales."""
+    """Crea un presupuesto para una obra/cliente con sus materiales. El vendedor siempre queda como responsable."""
     user_id = _extract_user_id(authorization)
+    if owner_scope(authorization) is not None or data.assigned_to is None:
+        data.assigned_to = user_id or data.assigned_to
     return OpportunityService.create_opportunity(data, created_by=user_id)
 
 
@@ -74,9 +80,35 @@ def create_opportunity(
     response_model=OpportunityResponse,
     summary="Detalle de un presupuesto",
 )
-def get_opportunity(opp_id: UUID) -> OpportunityResponse:
+def get_opportunity(opp_id: UUID, authorization: str | None = Header(None)) -> OpportunityResponse:
     """Obtiene el detalle de un presupuesto y sus materiales cotizados."""
-    return OpportunityService.get_opportunity_by_id(opp_id)
+    opp = OpportunityService.get_opportunity_by_id(opp_id)
+    ensure_owner(authorization, opp.assigned_to)
+    return opp
+
+
+@router.get(
+    "/{opp_id}/versions",
+    response_model=list[OpportunityVersionResponse],
+    summary="Historial de versiones de materiales de un presupuesto",
+)
+def get_opportunity_versions(
+    opp_id: UUID, authorization: str | None = Header(None)
+) -> list[OpportunityVersionResponse]:
+    """Cada renegociación de materiales o descuento deja una versión con la foto completa."""
+    ensure_owner(authorization, OpportunityService.get_opportunity_by_id(opp_id).assigned_to)
+    return OpportunityService.get_versions(opp_id)
+
+
+@router.get(
+    "/{opp_id}/timeline",
+    response_model=list[TimelineEvent],
+    summary="Hitos del presupuesto: cambios de etapa y versiones",
+)
+def get_opportunity_timeline(opp_id: UUID, authorization: str | None = Header(None)) -> list[TimelineEvent]:
+    """Hitos con fecha y hora para el seguimiento."""
+    ensure_owner(authorization, OpportunityService.get_opportunity_by_id(opp_id).assigned_to)
+    return OpportunityService.get_timeline(opp_id)
 
 
 @router.put(
@@ -91,10 +123,10 @@ def update_opportunity(
 ) -> OpportunityResponse:
     """Modifica datos o etapa del presupuesto. Reasignar el responsable queda para administrador y responsable comercial."""
     user_id = _extract_user_id(authorization)
-    if data.assigned_to is not None:
-        current = OpportunityService.get_opportunity_by_id(opp_id)
-        if str(current.assigned_to) != str(data.assigned_to):
-            require_roles(authorization, MANAGER_ROLES)
+    current = OpportunityService.get_opportunity_by_id(opp_id)
+    ensure_owner(authorization, current.assigned_to)
+    if data.assigned_to is not None and str(current.assigned_to) != str(data.assigned_to):
+        require_roles(authorization, MANAGER_ROLES)
     return OpportunityService.update_opportunity(opp_id, data, user_id=user_id)
 
 
@@ -103,8 +135,9 @@ def update_opportunity(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Baja lógica de un presupuesto",
 )
-def delete_opportunity(opp_id: UUID):
+def delete_opportunity(opp_id: UUID, authorization: str | None = Header(None)):
     """Aplica baja lógica (Invariante 2)."""
+    ensure_owner(authorization, OpportunityService.get_opportunity_by_id(opp_id).assigned_to)
     success = OpportunityService.delete_opportunity(opp_id)
     if not success:
         raise HTTPException(

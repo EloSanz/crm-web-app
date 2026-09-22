@@ -2,24 +2,25 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Field, Input, Stepper } from '@/components/ui/Field';
+import { Field, Input } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { DatePicker, toISODate } from '@/components/ui/DatePicker';
 import { Segmented } from '@/components/ui/Segmented';
 import { LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { LogoMark } from '@/components/brand/Logo';
+import { QuoteItemsEditor, quoteTotals } from '@/components/opportunities/QuoteItemsEditor';
 import type { OpportunityItemCreateData } from '@/types/crm';
 import { createOpportunity, fetchCompanies, fetchContacts, fetchProducts, fetchProjects, fetchStages, fetchUsers } from '@/lib/api';
 import { isManager } from '@/lib/roles';
 import { useLoad } from '@/lib/useLoad';
 import { useCurrentUser } from '@/lib/useUser';
-import { PRODUCT_CATEGORIES } from '@/lib/catalogs';
-import { formatARS, formatARSCents, formatQty, sentenceCase } from '@/lib/format';
+import { CLIENT_STATUS } from '@/lib/catalogs';
+import { formatARS, formatQty, sentenceCase } from '@/lib/format';
 
 const load = async () => {
   const [companies, contacts, projects, products, stages, users] = await Promise.all([
@@ -40,9 +41,10 @@ const load = async () => {
   };
 };
 
-const FALLBACK_USER = '00000000-0000-0000-0000-000000000001';
 const DRAFT_KEY = 'corralap:borrador-presupuesto';
 const NEW = '__nuevo__';
+/** A estas empresas no se les presupuesta (el backend también lo bloquea). */
+const BLOCKED = new Set(['inactivo', 'no_contactar']);
 
 interface Draft {
   clientType: 'company' | 'contact';
@@ -56,6 +58,7 @@ interface Draft {
   stageId: string;
   closeDate: string;
   items: OpportunityItemCreateData[];
+  discountPct?: number;
 }
 
 function readDraft(): Draft | null {
@@ -124,15 +127,14 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const [companyId, setCompanyId] = useState(preset.companyId);
   const [contactId, setContactId] = useState(preset.contactId);
   const [pointContactId, setPointContactId] = useState(preset.pointContactId);
-  const [assignedTo, setAssignedTo] = useState(preset.assignedTo || user?.id || FALLBACK_USER);
+  const [assignedTo, setAssignedTo] = useState(preset.assignedTo || user?.id || '');
   const [projectId, setProjectId] = useState(preset.projectId);
   const [delivery, setDelivery] = useState(preset.delivery);
   const [title, setTitle] = useState(preset.title);
   const [stageId, setStageId] = useState(preset.stageId);
   const [closeDate, setCloseDate] = useState(preset.closeDate);
   const [items, setItems] = useState<OpportunityItemCreateData[]>(preset.items);
-  const [productId, setProductId] = useState('');
-  const [qty, setQty] = useState(10);
+  const [discountPct, setDiscountPct] = useState(preset.discountPct ?? 0);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ client?: string; title?: string }>({});
 
@@ -140,7 +142,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const company = data.companies.find((c) => c.id === companyId) ?? null;
   const contact = data.contacts.find((c) => c.id === contactId) ?? null;
   const clientName = clientType === 'company' ? company?.name : contact ? `${contact.first_name} ${contact.last_name}` : undefined;
-  const total = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
+  const totals = quoteTotals(items, discountPct);
   const autoTitle = project ? `Materiales · ${project.name}` : '';
   const effectiveStage = stageId || data.stages[0]?.id || '';
   const canAssign = isManager(user);
@@ -160,7 +162,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
 
   /** Guarda lo cargado y va al alta de obra o contacto; al terminar vuelve acá con lo nuevo elegido. */
   const goCreate = (kind: 'obra' | 'contacto') => {
-    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items };
+    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items, discountPct };
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
@@ -170,32 +172,6 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
     if (clientType === 'company' && companyId) params.set('company_id', companyId);
     if (clientType === 'contact' && contactId && kind === 'obra') params.set('contact_id', contactId);
     router.push(`${kind === 'obra' ? '/projects/nueva' : '/contacts/nuevo'}?${params.toString()}`);
-  };
-
-  const productOptions = useMemo(
-    () =>
-      data.products
-        .map((p) => ({
-          value: p.id,
-          label: p.name,
-          hint: `${p.code} · ${formatARSCents(p.unit_price)} / ${p.unit}`,
-          group: PRODUCT_CATEGORIES.find((c) => c.value === p.category)?.label ?? p.category,
-          order: PRODUCT_CATEGORIES.findIndex((c) => c.value === p.category),
-        }))
-        .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'es')),
-    [data]
-  );
-
-  const addItem = () => {
-    const p = data.products.find((x) => x.id === productId);
-    if (!p || qty <= 0) return;
-    setItems((prev) => {
-      const i = prev.findIndex((it) => it.product_id === p.id);
-      if (i >= 0) return prev.map((it, idx) => (idx === i ? { ...it, quantity: it.quantity + qty } : it));
-      return [...prev, { product_id: p.id, product_name: p.name, unit: p.unit, quantity: qty, unit_price: Number(p.unit_price) }];
-    });
-    setProductId('');
-    setQty(10);
   };
 
   const save = async () => {
@@ -212,12 +188,14 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
         company_id: clientType === 'company' ? companyId : undefined,
         contact_id: clientType === 'contact' ? contactId : pointContactId || undefined,
         project_id: projectId || undefined,
-        assigned_to: assignedTo || user?.id || FALLBACK_USER,
+        // El vendedor siempre queda como responsable; admin y responsable comercial pueden asignar.
+        assigned_to: canAssign ? assignedTo || undefined : undefined,
         stage_id: effectiveStage,
         status: 'abierta',
         currency: 'ARS',
         expected_close_date: closeDate || undefined,
         delivery_location: delivery.trim() || undefined,
+        discount_pct: discountPct,
         items,
       });
       try {
@@ -269,7 +247,11 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
                         }}
                         placeholder="Elegí una empresa"
                         searchable
-                        options={data.companies.map((c) => ({ value: c.id, label: c.name, hint: c.cuit || c.industry || undefined }))}
+                        options={data.companies.map((c) =>
+                          BLOCKED.has(c.status)
+                            ? { value: c.id, label: c.name, hint: `${CLIENT_STATUS[c.status].label}: no se le puede presupuestar`, disabled: true }
+                            : { value: c.id, label: c.name, hint: c.cuit || c.industry || undefined }
+                        )}
                       />
                     )}
                   </Field>
@@ -377,65 +359,13 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
               </Block>
 
               <Block title="Materiales">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-                  <Field label="Material">
-                    {({ id }) => (
-                      <Select
-                        id={id}
-                        value={productId}
-                        onChange={setProductId}
-                        placeholder="Buscar en el catálogo"
-                        searchable
-                        searchPlaceholder="Código o nombre"
-                        options={productOptions}
-                      />
-                    )}
-                  </Field>
-                  <div>
-                    <p className="mb-1.5 text-sm font-semibold">Cantidad</p>
-                    <Stepper value={qty} onChange={setQty} label="Cantidad" />
-                  </div>
-                  <Button variant="secundario" onClick={addItem} disabled={!productId}>
-                    <Plus className="w-4 h-4" aria-hidden />
-                    Agregar
-                  </Button>
-                </div>
-                {items.length > 0 && (
-                  <ul className="divide-y divide-linea rounded-xl border border-linea">
-                    {items.map((it, i) => (
-                      <li key={`${it.product_id}-${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3">
-                        <div className="min-w-0 flex-1 basis-40">
-                          <p className="text-[15px] font-semibold leading-snug break-words">{it.product_name}</p>
-                          <p className="cifra text-[13px] text-tiza">
-                            {formatARSCents(it.unit_price)} / {it.unit}
-                          </p>
-                        </div>
-                        <Stepper
-                          size="sm"
-                          value={it.quantity}
-                          onChange={(v) => setItems((prev) => prev.map((x, idx) => (idx === i ? { ...x, quantity: v } : x)))}
-                          label={`Cantidad de ${it.product_name}`}
-                        />
-                        <span className="cifra w-28 text-right text-[15px] font-bold">{formatARS(it.quantity * it.unit_price)}</span>
-                        <Button
-                          variant="fantasma"
-                          size="icono-sm"
-                          onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
-                          aria-label={`Quitar ${it.product_name}`}
-                          className="hover:text-rojo-tinta hover:bg-rojo-velo"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <QuoteItemsEditor products={data.products} items={items} onChange={setItems} discountPct={discountPct} onDiscountChange={setDiscountPct} />
               </Block>
               <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
             </form>
 
             <aside className="xl:sticky xl:top-6" aria-label="Vista previa del presupuesto">
-              <div className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-alzada">
+              <div className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
                 <div className="sobre-pavonado grano-pavonado flex items-center gap-3 px-5 py-4 text-white">
                   <LogoMark className="h-8 w-8" />
                   <div className="min-w-0 flex-1">
@@ -460,15 +390,27 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
                               <span className="block truncate">{it.product_name}</span>
                               <span className="cifra block text-[13px] text-tiza">{formatQty(it.quantity, it.unit)}</span>
                             </span>
-                            <span className="cifra shrink-0 font-semibold">{formatARS(it.quantity * it.unit_price)}</span>
+                            <span className="cifra shrink-0 font-semibold">{formatARS(it.quantity * it.unit_price * (1 - (it.discount_pct ?? 0) / 100))}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
+                  {totals.discount > 0 && (
+                    <div className="space-y-1 border-t border-linea pt-3 text-sm">
+                      <p className="flex justify-between gap-3">
+                        <span className="text-tiza">Subtotal</span>
+                        <span className="cifra">{formatARS(totals.subtotal)}</span>
+                      </p>
+                      <p className="flex justify-between gap-3">
+                        <span className="text-tiza">Descuento {discountPct}%</span>
+                        <span className="cifra">− {formatARS(totals.discount)}</span>
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-baseline justify-between gap-3 border-t border-linea pt-4">
                     <span className="font-semibold">Total</span>
-                    <span className="cifra titular min-w-0 truncate text-[28px]">{formatARS(total)}</span>
+                    <span className="cifra titular min-w-0 truncate text-[28px]">{formatARS(totals.total)}</span>
                   </div>
                 </div>
                 <div className="border-t border-linea bg-chapa-2 p-4">

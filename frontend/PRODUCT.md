@@ -36,10 +36,14 @@ Una oportunidad es un presupuesto de materiales para una obra puntual. La North 
 
 ## Capabilities and Constraints
 
-- Stack: Next.js 16 (App Router) + React 19 + Tailwind v4 en `frontend/`; API FastAPI + Supabase. El rediseño no cambia la API.
+- Stack: Next.js 16 (App Router) + React 19 + Tailwind v4 en `frontend/`; API FastAPI + Supabase.
 - Invariantes: historial inmutable, baja lógica (nunca borrado físico), permisos validados en el backend, trazabilidad de usuario y fecha.
-- Fuera de alcance (no prometer en UI): stock, tareas/agenda/recordatorios, notificaciones, integración con WhatsApp, facturación, pagos, exportación, multi-organización.
+- Fuera de alcance (no prometer en UI): stock, tareas/agenda/recordatorios, notificaciones, facturación, pagos, exportación, multi-organización, recepción de correos entrantes.
 - Roles del CRM: admin, gerente_comercial (responsable comercial), ejecutivo_ventas (vendedor).
+- Permisos (ronda 5): cada vendedor ve y toca sólo sus presupuestos, y lo que crea queda asignado a él; admin y responsable comercial ven todo y reasignan. Indicadores: admin ve todas las pestañas; responsable comercial ve Ventas, Vendedores, Etapas, Presupuestos y Contacto; el vendedor no ve ningún indicador (su Inicio es la cola de trabajo, sin montos totales). El historial de cambios del catálogo es sólo para admin.
+- Precios y negociación: cada material tiene precio minorista y, opcionalmente, mayorista desde una cantidad; el presupuesto aplica la escala sola por cantidad y admite descuento por renglón y descuento general. Cambiar materiales o descuento de un presupuesto abierto genera una nueva versión (con motivo) en vez de otro presupuesto: el historial conserva cada versión y los indicadores no se ensucian.
+- Contacto con el cliente: botón «Contactar» (llamada registrada, WhatsApp dentro de la app con la API de WhatsApp Cloud o, sin configurar, wa.me, y correo con formato y adjuntos vía proveedor configurable). Todo contacto queda en el seguimiento y alimenta los indicadores.
+- No se presupuesta a empresas inactivas ni «no contactar». No se repiten DNI, teléfono ni correo entre contactos.
 - Idioma: español rioplatense.
 
 ## Brand Commitments

@@ -17,6 +17,8 @@ import {
   ActivityAttachment,
   CrmUser,
   CrmUserFormData,
+  OpportunityVersion,
+  TimelineEvent,
 } from '@/types/crm';
 
 export function getApiBaseUrl(): string {
@@ -88,6 +90,17 @@ export function getAuthHeaders(): HeadersInit {
   return headers;
 }
 
+/** Mensaje legible del backend: `detail` como texto o la lista de errores de validación de FastAPI. */
+export async function readError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === 'string') return body.detail;
+    if (Array.isArray(body?.detail) && body.detail[0]?.msg) return String(body.detail[0].msg);
+  } catch {
+    /* sin cuerpo JSON */
+  }
+  return fallback;
+}
 
 // ---------------------------------------------------------------------------
 // EMPRESAS (CONTRATISTAS)
@@ -345,7 +358,7 @@ export async function fetchOpportunity(id: string): Promise<Opportunity> {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('No encontramos ese presupuesto');
+    throw new Error(await readError(res, 'No encontramos ese presupuesto'));
   }
   return res.json();
 }
@@ -468,6 +481,18 @@ export async function deleteProject(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 // ACTIVIDADES COMERCIALES Y NORTH STAR METRIC (NSM)
 // ---------------------------------------------------------------------------
+
+export async function fetchOpportunityVersions(opportunityId: string): Promise<OpportunityVersion[]> {
+  const res = await fetch(buildApiUrl(`/api/opportunities/${opportunityId}/versions`), { headers: getAuthHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await readError(res, 'No se pudieron traer las versiones'));
+  return res.json();
+}
+
+export async function fetchOpportunityTimeline(opportunityId: string): Promise<TimelineEvent[]> {
+  const res = await fetch(buildApiUrl(`/api/opportunities/${opportunityId}/timeline`), { headers: getAuthHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await readError(res, 'No se pudieron traer los hitos'));
+  return res.json();
+}
 
 export async function fetchOpportunityActivities(opportunityId: string): Promise<Activity[]> {
   const url = buildApiUrl(`/api/opportunities/${opportunityId}/activities`);

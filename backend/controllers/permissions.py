@@ -34,3 +34,24 @@ def require_roles(authorization: str | None, roles: set[str]) -> dict:
             detail="Tu rol no tiene permiso para esta acción",
         )
     return session
+
+
+SELLER_ROLE = "ejecutivo_ventas"
+
+
+def owner_scope(authorization: str | None) -> UUID | None:
+    """Para un vendedor devuelve su id (sólo ve lo propio); para admin y responsable comercial, None (ve todo)."""
+    session = session_from_header(authorization)
+    if session.get("role") != SELLER_ROLE:
+        return None
+    return session_user_id(authorization)
+
+
+def ensure_owner(authorization: str | None, assigned_to: UUID | str | None) -> None:
+    """Corta con 403 si un vendedor intenta ver o tocar un presupuesto de otro."""
+    scope = owner_scope(authorization)
+    if scope is not None and str(scope) != str(assigned_to):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este presupuesto está asignado a otro vendedor",
+        )

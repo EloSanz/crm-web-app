@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
-import { BarChart3, Boxes, ClipboardList, Home, MapPinned, Search, ShieldCheck, Users } from 'lucide-react';
+import { Boxes, ChartLine, ClipboardList, Home, MapPinned, Search, ShieldCheck, Users, UsersRound } from 'lucide-react';
 import { useCurrentUser } from '@/lib/useUser';
 import { isAdmin, isManager } from '@/lib/roles';
 import { Logo } from '@/components/brand/Logo';
@@ -21,7 +21,8 @@ const NAV = [
 
 /** Secciones de gestión: el responsable comercial ve el equipo; el administrador, además, los usuarios. */
 export const MANAGE_NAV = [
-  { label: 'Equipo', href: '/equipo', icon: BarChart3, match: (p: string) => p.startsWith('/equipo'), role: 'manager' as const },
+  { label: 'Equipo', href: '/equipo', icon: UsersRound, match: (p: string) => p.startsWith('/equipo'), role: 'manager' as const },
+  { label: 'Indicadores', href: '/indicadores', icon: ChartLine, match: (p: string) => p.startsWith('/indicadores'), role: 'manager' as const },
   { label: 'Usuarios', href: '/usuarios', icon: ShieldCheck, match: (p: string) => p.startsWith('/usuarios'), role: 'admin' as const },
 ];
 

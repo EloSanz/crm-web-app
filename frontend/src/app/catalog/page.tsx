@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { History, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -18,12 +18,16 @@ import { deleteProduct, fetchProducts } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { PRODUCT_CATEGORIES } from '@/lib/catalogs';
 import { formatARSCents } from '@/lib/format';
+import { formatUnitQty, hasWholesale } from '@/lib/pricing';
+import { useCurrentUser } from '@/lib/useUser';
+import { isAdmin } from '@/lib/roles';
 
 type Filter = 'all' | ProductCategory;
 
 export default function CatalogPage() {
   const router = useRouter();
   const toast = useToast();
+  const admin = isAdmin(useCurrentUser());
   const { data, error, loading, reload } = useLoad(fetchProducts);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -62,10 +66,18 @@ export default function CatalogPage() {
         <PageHeader
           title="Catálogo"
           actions={
-            <ButtonLink href={filter === 'all' ? '/catalog/nuevo' : `/catalog/nuevo?rubro=${encodeURIComponent(filter)}`} size="lg">
-              <Plus className="w-5 h-5" aria-hidden />
-              Nuevo material
-            </ButtonLink>
+            <>
+              {admin && (
+                <ButtonLink href="/catalog/historial" variant="secundario" size="lg">
+                  <History className="w-5 h-5" aria-hidden />
+                  Historial
+                </ButtonLink>
+              )}
+              <ButtonLink href={filter === 'all' ? '/catalog/nuevo' : `/catalog/nuevo?rubro=${encodeURIComponent(filter)}`} size="lg">
+                <Plus className="w-5 h-5" aria-hidden />
+                Nuevo material
+              </ButtonLink>
+            </>
           }
         />
         <div className="space-y-3">
@@ -102,7 +114,7 @@ export default function CatalogPage() {
                 </h2>
                 <ul className="divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
                   {g.items.map((p) => (
-                    <li key={p.id} className="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-chapa-2/70 sm:gap-4 sm:px-5">
+                    <li key={p.id} className="relative flex flex-wrap items-center gap-x-3 px-4 py-3 transition-colors hover:bg-chapa-2/70 sm:flex-nowrap sm:gap-x-4 sm:px-5">
                       <span className="cifra hidden w-20 shrink-0 text-[13px] font-bold text-tiza sm:block">{p.code}</span>
                       <div className="min-w-0 flex-1">
                         <Link href={`/catalog/${p.id}/editar`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0 focus-visible:outline-none">
@@ -113,7 +125,10 @@ export default function CatalogPage() {
                           {p.unit}
                         </p>
                       </div>
-                      <span className="cifra shrink-0 text-[15px] font-extrabold">{formatARSCents(p.unit_price)}</span>
+                      <div className="shrink-0 text-right">
+                        <p className="cifra text-[15px] font-extrabold">{formatARSCents(p.unit_price)}</p>
+                        {hasWholesale(p) && <WholesaleLine product={p} className="hidden sm:block" />}
+                      </div>
                       <Menu
                         label={`Acciones de ${p.name}`}
                         items={[
@@ -121,6 +136,7 @@ export default function CatalogPage() {
                           { label: 'Dar de baja', icon: <Trash2 className="w-4 h-4" />, tone: 'peligro', onSelect: () => setDeleting(p) },
                         ]}
                       />
+                      {hasWholesale(p) && <WholesaleLine product={p} className="basis-full pr-[52px] text-right sm:hidden" />}
                     </li>
                   ))}
                 </ul>
@@ -140,5 +156,15 @@ export default function CatalogPage() {
         />
       )}
     </AppLayout>
+  );
+}
+
+/** "$ 8.900,00 desde 50 bolsas": el precio mayorista en una línea, debajo del minorista. */
+function WholesaleLine({ product, className }: { product: Product; className?: string }) {
+  return (
+    <p className={`cifra truncate text-[13px] text-tiza ${className ?? ''}`}>
+      <span className="sr-only">Mayorista: </span>
+      <span className="font-semibold text-tinta">{formatARSCents(product.wholesale_price)}</span> desde {formatUnitQty(product.wholesale_min_qty ?? 0, product.unit)}
+    </p>
   );
 }

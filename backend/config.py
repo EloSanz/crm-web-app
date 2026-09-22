@@ -39,5 +39,26 @@ class Settings(BaseSettings):
     AWS_BUCKET_NAME: str = "myawsbucketelito"
     AWS_S3_CUSTOM_DOMAIN: str = ""
 
+    # Correo saliente al cliente: "log" (no envía, queda simulado), "resend" o "smtp"
+    EMAIL_PROVIDER: str = "log"
+    EMAIL_FROM: str = "Corralap <ventas@corralap.com.ar>"
+    EMAIL_REPLY_TO: str = ""
+    EMAIL_BRAND_NAME: str = "Corralap"
+    RESEND_API_KEY: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+
+    # WhatsApp Cloud API (Meta). Sin token ni número, el CRM abre wa.me y registra el contacto.
+    WHATSAPP_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_APP_SECRET: str = ""
+    WHATSAPP_API_VERSION: str = "v21.0"
+    WHATSAPP_TEMPLATE_NAME: str = ""
+    WHATSAPP_TEMPLATE_LANG: str = "es_AR"
+    WHATSAPP_DEFAULT_COUNTRY_CODE: str = "54"
+
 
 settings = Settings()

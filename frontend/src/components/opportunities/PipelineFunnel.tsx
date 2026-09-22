@@ -24,7 +24,7 @@ interface Row {
  * Embudo de presupuestos abiertos: una hilada por etapa, un ladrillo por presupuesto,
  * pintado según el seguimiento. El largo de la hilada es la cantidad; el monto va escrito.
  */
-export function PipelineFunnel({ opportunities, stages }: { opportunities: Opportunity[]; stages: Stage[] }) {
+export function PipelineFunnel({ opportunities, stages, showAmounts = true }: { opportunities: Opportunity[]; stages: Stage[]; showAmounts?: boolean }) {
   const [hover, setHover] = useState<string | null>(null);
 
   const { rows, maxCount, totals } = useMemo(() => {
@@ -67,7 +67,7 @@ export function PipelineFunnel({ opportunities, stages }: { opportunities: Oppor
                     <span className="cifra whitespace-nowrap font-medium text-tiza"> · {row.bricks.length}</span>
                   </span>
                 </p>
-                <p className="cifra shrink-0 whitespace-nowrap font-bold">{row.amount ? formatARSCompact(row.amount) : '—'}</p>
+                {showAmounts && <p className="cifra shrink-0 whitespace-nowrap font-bold">{row.amount ? formatARSCompact(row.amount) : '—'}</p>}
               </div>
 
               <div className="relative">
@@ -98,7 +98,13 @@ export function PipelineFunnel({ opportunities, stages }: { opportunities: Oppor
                   >
                     <p className="truncate font-bold">{hovered.opp.title}</p>
                     <p className="text-niebla">
-                      {HEALTH_META[hovered.health].label} · <span className="cifra font-bold text-white">{formatARSCompact(Number(hovered.opp.estimated_value || 0))}</span>
+                      {HEALTH_META[hovered.health].label}
+                      {showAmounts && (
+                        <>
+                          {' · '}
+                          <span className="cifra font-bold text-white">{formatARSCompact(Number(hovered.opp.estimated_value || 0))}</span>
+                        </>
+                      )}
                     </p>
                   </div>
                 )}
