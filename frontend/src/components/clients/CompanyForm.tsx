@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
 import { CLIENT_STATUS, ORIGIN_OPTIONS } from '@/lib/catalogs';
-import { formatCuit, isValidCuit } from '@/lib/format';
+import { formatCuit, formatPhone, isValidCuit } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as CompanyStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
 const ORIGINS = ORIGIN_OPTIONS.map((o) => ({ value: o, label: o }));
@@ -85,10 +85,31 @@ export function CompanyForm({ company }: { company?: Company | null }) {
           {({ id }) => <Input id={id} value={data.industry || ''} onChange={(e) => set('industry', e.target.value)} placeholder="Estructuras, viviendas" />}
         </Field>
         <Field label="Teléfono">
-          {({ id }) => <Input id={id} type="tel" inputMode="tel" value={data.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+54 11 4455-6677" />}
+          {({ id }) => (
+            <Input
+              id={id}
+              type="tel"
+              inputMode="tel"
+              maxLength={10}
+              value={data.phone || ''}
+              onChange={(e) => set('phone', formatPhone(e.target.value))}
+              placeholder="11 4455-6677"
+            />
+          )}
         </Field>
         <Field label="Correo">
           {({ id }) => <Input id={id} type="email" value={data.email || ''} onChange={(e) => set('email', e.target.value)} placeholder="compras@empresa.com" />}
+        </Field>
+        <Field label="Sitio web">
+          {({ id }) => (
+            <Input
+              id={id}
+              type="url"
+              value={data.website || ''}
+              onChange={(e) => set('website', e.target.value)}
+              placeholder="https://www.empresa.com"
+            />
+          )}
         </Field>
         <Field label="Dirección" className="sm:col-span-2">
           {({ id }) => <Input id={id} value={data.address || ''} onChange={(e) => set('address', e.target.value)} placeholder="Av. Rivadavia 1200, Morón" />}

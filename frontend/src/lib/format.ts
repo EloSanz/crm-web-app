@@ -117,3 +117,18 @@ export function isValidCuit(value: string): boolean {
   const expected = check === 11 ? 0 : check;
   return expected !== 10 && expected === Number(d[10]);
 }
+
+/** Teléfono mientras se escribe: sólo dígitos, máximo 10 (formato local, sin código de país). */
+export function formatPhone(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 10);
+}
+
+/** DNI mientras se escribe: sólo dígitos, máximo 8. */
+export function formatDni(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 8);
+}
+
+/** DNI válido: tiene que tener sus 8 dígitos completos. */
+export function isValidDni(value: string): boolean {
+  return value.replace(/\D/g, '').length === 8;
+}

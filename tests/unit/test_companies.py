@@ -9,7 +9,7 @@ def test_create_and_get_company(client: TestClient):
         "cuit": "30-71234567-9",
         "industry": "Obra Civil",
         "email": "compras@losandes.com",
-        "phone": "+54 11 4455-6677",
+        "phone": "11 4455-6677",
         "address": "Av. Rivadavia 1200, Morón",
         "status": "potencial",
         "origin": "Vino al local (mostrador)",

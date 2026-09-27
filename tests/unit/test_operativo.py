@@ -136,12 +136,13 @@ def test_contacts_cannot_repeat_dni_phone_or_email(client: TestClient):
         "first_name": "Juan",
         "last_name": "Duplicado",
         "document_number": "41.987.654",
-        "phone": "+54 9 11 4999-0001",
+        "phone": "11 4999-0001",
         "email": "juan.duplicado@obras-test.com",
     }
     first = client.post("/api/contacts", json=base)
     assert first.status_code == 201
 
+    labels = {"document_number": "DNI", "phone": "Teléfono", "email": "Correo"}
     for field, value in [
         ("document_number", "41987654"),
         ("phone", "11 4999 0001"),
@@ -150,7 +151,10 @@ def test_contacts_cannot_repeat_dni_phone_or_email(client: TestClient):
         payload = {"first_name": "Otro", "last_name": "Contacto", field: value}
         res = client.post("/api/contacts", json=payload)
         assert res.status_code == 409, field
-        assert "Juan Duplicado" in res.json()["detail"]
+        # El mensaje no debe revelar a quién pertenece el dato duplicado.
+        detail = res.json()["detail"]
+        assert detail == f"{labels[field]} ya registrado", field
+        assert "Juan" not in detail and "Duplicado" not in detail
 
     # Editar el mismo contacto sin cambiar sus datos no choca consigo mismo.
     res = client.put(

@@ -18,7 +18,7 @@ def test_create_and_get_contact_with_company(client: TestClient):
         "company_id": company_id,
         "job_title": "Maestro Mayor de Obra",
         "email": "carlos.gutierrez@obras.com",
-        "phone": "+54 9 11 5566-7788",
+        "phone": "11 5566-7788",
         "status": "cliente",
         "origin": "Recomendación de otro contratista",
     }

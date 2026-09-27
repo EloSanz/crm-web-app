@@ -2,7 +2,22 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from backend.models.validators import validate_phone
+
+
+def validate_document_number(value: str | None) -> str | None:
+    """DNI argentino: 8 dígitos."""
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if len(digits) != 8:
+        raise ValueError("El DNI debe tener 8 dígitos")
+    return value
 
 
 class ContactStatus(str, Enum):
@@ -27,6 +42,9 @@ class ContactBase(BaseModel):
     notes: str | None = Field(None, description="Observaciones o notas")
     assigned_to: UUID | None = Field(None, description="ID del ejecutivo comercial asignado")
 
+    _document_number = field_validator("document_number")(validate_document_number)
+    _phone = field_validator("phone")(validate_phone)
+
 
 class ContactCreate(ContactBase):
     pass
@@ -44,6 +62,9 @@ class ContactUpdate(BaseModel):
     origin: str | None = Field(None, max_length=100)
     notes: str | None = None
     assigned_to: UUID | None = None
+
+    _document_number = field_validator("document_number")(validate_document_number)
+    _phone = field_validator("phone")(validate_phone)
 
 
 class ContactResponse(ContactBase):

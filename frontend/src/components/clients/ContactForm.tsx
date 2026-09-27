@@ -10,6 +10,7 @@ import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
 import { ReturnToQuoteDialog } from '@/components/opportunities/ReturnToQuoteDialog';
 import { CLIENT_STATUS, CONTACT_ROLES, ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { formatDni, formatPhone, isValidDni } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as ContactStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
 const ORIGINS = ORIGIN_OPTIONS.map((o) => ({ value: o, label: o }));
@@ -45,9 +46,13 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const next = { first: data.first_name.trim() ? undefined : 'Falta el nombre', last: data.last_name.trim() ? undefined : 'Falta el apellido' };
+    const next = {
+      first: data.first_name.trim() ? undefined : 'Falta el nombre',
+      last: data.last_name.trim() ? undefined : 'Falta el apellido',
+      dni: data.document_number && !isValidDni(data.document_number) ? 'Tiene que tener 8 dígitos' : undefined,
+    };
     setErrors(next);
-    if (next.first || next.last) return;
+    if (next.first || next.last || next.dni) return;
     setSaving(true);
     const payload = { ...data, company_id: data.company_id || undefined };
     const fullName = `${data.first_name} ${data.last_name}`;
@@ -100,12 +105,13 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
               aria-invalid={invalid}
               type="tel"
               inputMode="tel"
+              maxLength={10}
               value={data.phone || ''}
               onChange={(e) => {
-                set('phone', e.target.value);
+                set('phone', formatPhone(e.target.value));
                 setErrors((prev) => ({ ...prev, phone: undefined }));
               }}
-              placeholder="+54 9 11 5566-7788"
+              placeholder="11 5566-7788"
             />
           )}
         </Field>
@@ -131,12 +137,13 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
               aria-invalid={invalid}
               inputMode="numeric"
               className="cifra"
+              maxLength={8}
               value={data.document_number || ''}
               onChange={(e) => {
-                set('document_number', e.target.value);
+                set('document_number', formatDni(e.target.value));
                 setErrors((prev) => ({ ...prev, dni: undefined }));
               }}
-              placeholder="32.123.456"
+              placeholder="32123456"
             />
           )}
         </Field>

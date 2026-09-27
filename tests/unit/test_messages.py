@@ -381,7 +381,7 @@ def test_webhook_verification(monkeypatch, raw_client: TestClient):
 
 
 def test_webhook_inbound_message_is_stored_with_activity(client: TestClient, raw_client: TestClient):
-    _, contact, opp = _setup_client(client, "+54 9 11 4000-0006")
+    _, contact, opp = _setup_client(client, "11 4000-0006")
     # Una actividad previa con fecha por defecto: el entrante no debe mezclar fechas con y sin zona.
     assert client.post("/api/calls/log", json={"opportunity_id": opp["id"], "phone": "1140000006"}).status_code == 201
     payload = _inbound_payload("5491140000006", "wamid.IN.0006", "Hola, ¿me confirman la entrega del lunes?")
