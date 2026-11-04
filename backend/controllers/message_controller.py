@@ -27,7 +27,7 @@ from backend.models.message import (
     WhatsAppStatusResponse,
 )
 from backend.models.opportunity import OpportunityResponse, OpportunityStatus
-from backend.services import email_service, gmail_service, whatsapp_service
+from backend.services import ai_service, email_service, gmail_service, whatsapp_service
 from backend.services.activity_service import ActivityService
 from backend.services.company_service import CompanyService
 from backend.services.contact_service import ContactService
@@ -264,6 +264,8 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
         lines.append("Envío simulado: no hay un proveedor de correo configurado.")
     if data.ai_draft_id:
         lines.append("Partió de un borrador del asistente, revisado por el vendedor.")
+        # Lo que se mandó de verdad: el asistente aprende de lo que el vendedor corrigió.
+        ai_service.set_final(data.ai_draft_id, text)
     lines += warnings
     if text:
         lines += ["", text[:2000]]
@@ -393,6 +395,8 @@ def whatsapp_send(data: WhatsAppSendRequest, authorization: str | None = Header(
         raise HTTPException(status_code=err.http_status, detail=err.message)
 
     message = MessageService.create(**common, status=MessageStatus.ENVIADO, provider_message_id=wamid)
+    if data.ai_draft_id and not data.template:
+        ai_service.set_final(data.ai_draft_id, text)
     if not _continues_conversation(message):
         ActivityService.create_activity(
             ActivityCreate(

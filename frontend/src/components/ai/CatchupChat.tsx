@@ -16,6 +16,26 @@ import type { CatchupAnswer, CatchupOverview, Citation } from '@/types/ai';
 
 type Turn = { id: string; question: string; answer?: CatchupAnswer; error?: string; pending?: boolean };
 
+/** La conversación se guarda por pestaña: al ir a una fuente y volver, sigue donde estaba. */
+const storageKey = (companyId: string) => `crm:ponete-al-dia:${companyId}`;
+
+function loadTurns(companyId: string): Turn[] {
+  try {
+    const raw = sessionStorage.getItem(storageKey(companyId));
+    const parsed = raw ? (JSON.parse(raw) as Turn[]) : [];
+    return Array.isArray(parsed) ? parsed.filter((t) => t.answer || t.error) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Agrega ?volver=<chat> al enlace de la fuente (antes del #seguimiento). */
+function withBack(link: string, back: string): string {
+  const [path, hash] = link.split('#');
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}volver=${encodeURIComponent(back)}${hash ? `#${hash}` : ''}`;
+}
+
 /** «Ponete al día»: el vendedor pregunta por la historia del cliente y cada dato viene con su fuente. */
 export function CatchupChat({ companyId }: { companyId: string }) {
   const load = useCallback(() => fetchCatchup(companyId), [companyId]);
@@ -103,7 +123,7 @@ function AnswerText({ answer, turnId }: { answer: CatchupAnswer; turnId: string 
   );
 }
 
-function Sources({ citations, turnId }: { citations: Citation[]; turnId: string }) {
+function Sources({ citations, turnId, back }: { citations: Citation[]; turnId: string; back: string }) {
   if (citations.length === 0) return null;
   return (
     <ol className="mt-3 space-y-1.5 border-t border-linea pt-3" aria-label="Fuentes">
@@ -121,7 +141,7 @@ function Sources({ citations, turnId }: { citations: Citation[]; turnId: string 
             </p>
           </div>
           {c.link && (
-            <Link href={c.link} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 font-semibold text-tinta hover:bg-chapa-2">
+            <Link href={withBack(c.link, back)} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 font-semibold text-tinta hover:bg-chapa-2">
               Ver
               <ArrowUpRight className="w-3.5 h-3.5" aria-hidden />
               <span className="sr-only"> en el seguimiento</span>
@@ -134,7 +154,8 @@ function Sources({ citations, turnId }: { citations: Citation[]; turnId: string 
 }
 
 function Conversation({ companyId, overview }: { companyId: string; overview: CatchupOverview }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>(() => loadTurns(companyId));
+  const back = `/companies/${companyId}/ponete-al-dia`;
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -148,6 +169,14 @@ function Conversation({ companyId, overview }: { companyId: string; overview: Ca
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(storageKey(companyId), JSON.stringify(turns.filter((t) => !t.pending)));
+    } catch {
+      /* sin almacenamiento: la conversación sólo dura mientras la página está abierta */
+    }
+  }, [companyId, turns]);
 
   const ask = async (raw: string) => {
     const question = raw.trim();
@@ -223,7 +252,7 @@ function Conversation({ companyId, overview }: { companyId: string; overview: Ca
                           Esta respuesta no cita ninguna fuente del CRM: verificala antes de usarla.
                         </p>
                       )}
-                      <Sources citations={t.answer.citations} turnId={t.id} />
+                      <Sources citations={t.answer.citations} turnId={t.id} back={back} />
                     </>
                   )}
                 </div>

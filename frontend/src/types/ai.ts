@@ -20,6 +20,9 @@ export interface AIDraft {
   subject?: string | null;
   body_text: string;
   body_html?: string | null;
+  /** Párrafos con «**negrita**», renglones «- » y la marca de la tabla del presupuesto. */
+  paragraphs: string[];
+  includes_detail: boolean;
   to_confirm: string[];
   rationale?: string | null;
   simulated: boolean;
@@ -30,8 +33,12 @@ export interface DraftPayload {
   channel: MessageChannel;
   opportunity_id?: string | null;
   contact_id?: string | null;
+  company_id?: string | null;
   phone?: string | null;
   instruction?: string | null;
+  /** Lo que hay ahora en el editor (con lo que cambió el vendedor) y la última versión del asistente. */
+  current_text?: string | null;
+  previous_draft?: string | null;
 }
 
 /** Fuente citada por «Ponete al día»: una actividad, etapa, versión o mensaje del seguimiento. */

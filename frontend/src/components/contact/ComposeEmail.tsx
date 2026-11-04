@@ -16,7 +16,7 @@ import { formatBytes } from '@/components/opportunities/AttachmentViewer';
 import { fetchCompany, fetchCompanyContacts, fetchContact, fetchOpportunity, uploadAttachment } from '@/lib/api';
 import { fetchMessages, sendEmail } from '@/lib/api-comms';
 import { fetchGmailStatus } from '@/lib/api-ai';
-import { DraftAssistant } from '@/components/ai/DraftAssistant';
+import { EditorDraftAssistant } from '@/components/ai/DraftAssistant';
 import type { AIDraft, GmailStatus } from '@/types/ai';
 import type { CrmMessage } from '@/types/comms';
 import { useLoad } from '@/lib/useLoad';
@@ -153,6 +153,7 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
   const [sent, setSent] = useState(false);
   const [tried, setTried] = useState(false);
   const [aiDraftId, setAiDraftId] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onBodyChange = useCallback((html: string, empty: boolean) => setBody({ html, empty }), []);
@@ -213,13 +214,19 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
     }
   };
 
+  // El asistente ya escribió en el editor: acá sólo se toma el asunto (si no se tocó) y el id para el seguimiento.
   const applyDraft = (draft: AIDraft) => {
-    if (!editor || !draft.body_html) return;
-    editor.commands.setContent(draft.body_html);
     if (draft.subject && (!subject.trim() || subject === initialSubject) && !replyTo) setSubject(draft.subject);
     setAiDraftId(draft.id);
-    editor.commands.focus('end');
   };
+  const detail = useMemo(() => (opp && opp.items.length > 0 ? presupuestoData(opp) : null), [opp]);
+  const assistantTarget = useMemo(
+    () =>
+      opp
+        ? { channel: 'email' as const, opportunity_id: opp.id }
+        : { channel: 'email' as const, contact_id: contact?.id ?? null, company_id: company?.id ?? null },
+    [opp, contact?.id, company?.id]
+  );
 
   const insertDetail = () => {
     if (!editor || !opp) return;
@@ -359,9 +366,30 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
               )}
             </Field>
 
-            <div className="min-w-0">
-              <MailEditor editor={editor} />
+            <div className="min-w-0 space-y-2.5">
+              <div className="relative">
+                <MailEditor editor={editor} />
+                {aiBusy && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[49px] z-[1] flex items-start justify-center rounded-b-xl bg-chapa/70 pt-10" aria-hidden>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-pavonado px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-alzada">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Escribiendo…
+                    </span>
+                  </div>
+                )}
+              </div>
               {tried && bodyError && <p className="mt-1.5 text-[13px] font-semibold text-rojo-tinta">{bodyError}</p>}
+              {(opp || contact || company) && (
+                <EditorDraftAssistant
+                  editor={editor}
+                  target={assistantTarget}
+                  detail={detail}
+                  isPristine={() => !editor || editor.isEmpty || editor.getHTML() === initialHtml}
+                  onApplied={applyDraft}
+                  onBusyChange={setAiBusy}
+                  autoStart={params.suggest}
+                />
+              )}
             </div>
 
             {pending.length > 0 && (
@@ -412,13 +440,6 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
                 <Paperclip className="w-4 h-4" aria-hidden />
                 Adjuntar
               </Button>
-              {(opp || contact) && (
-                <DraftAssistant
-                  target={{ channel: 'email', opportunity_id: opp?.id ?? null, contact_id: opp ? null : contact?.id ?? null }}
-                  onUse={applyDraft}
-                  autoStart={params.suggest}
-                />
-              )}
               {opp && opp.items.length > 0 && (
                 <Button variant="secundario" onMouseDown={(e) => e.preventDefault()} onClick={insertDetail} disabled={!editor}>
                   <TableProperties className="w-4 h-4" aria-hidden />

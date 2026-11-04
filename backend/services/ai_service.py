@@ -31,6 +31,8 @@ SIMULATED_MODEL = "simulado"
 
 # Respaldo en memoria: desarrollo local, tests y bases sin la migración 08.
 _mock_requests: dict[str, dict] = {}
+# Texto final enviado a partir de un borrador (bases sin la columna final_text de la migración 09).
+_mock_finals: dict[str, str] = {}
 
 
 class AIError(Exception):
@@ -124,6 +126,69 @@ def log_request(
         logger.warning(f"No se pudo registrar la consulta al modelo en Supabase (queda en memoria): {e}")
     _mock_requests[record["id"]] = record
     return record["id"]
+
+
+def set_final(request_id: UUID | str | None, final_text: str) -> None:
+    """Guarda lo que el vendedor terminó enviando a partir de un borrador: así se aprende de sus correcciones."""
+    if not request_id or not final_text:
+        return
+    text = final_text.strip()[:8000]
+    try:
+        res = (
+            get_supabase_client()
+            .table("crm_ai_requests")
+            .update({"final_text": text})
+            .eq("id", str(request_id))
+            .eq("feature", "borrador")
+            .execute()
+        )
+        if res.data:
+            return
+    except Exception as e:
+        logger.debug(f"No se pudo guardar el texto final en Supabase (queda en memoria): {e}")
+    row = _mock_requests.get(str(request_id))
+    if row is not None:
+        row["final_text"] = text
+    _mock_finals[str(request_id)] = text
+
+
+def recent_edits(user_id: UUID | None, channel: str, limit: int = 4) -> list[tuple[str, str]]:
+    """Borradores recientes de este vendedor que él corrigió antes de enviar: [(lo propuesto, lo enviado)]."""
+    if not user_id:
+        return []
+    rows: list[dict] = []
+    try:
+        res = (
+            get_supabase_client()
+            .table("crm_ai_requests")
+            .select("id, answer, final_text, created_at")
+            .eq("user_id", str(user_id))
+            .eq("feature", "borrador")
+            .eq("channel", channel)
+            .not_.is_("final_text", "null")
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        rows = list(res.data or [])
+    except Exception as e:
+        logger.debug(f"Sin final_text en crm_ai_requests: {e}")
+    seen = {str(r.get("id")) for r in rows}
+    for r in _mock_requests.values():
+        final = r.get("final_text") or _mock_finals.get(r["id"])
+        if r["id"] in seen or not final:
+            continue
+        if str(r.get("user_id")) == str(user_id) and r.get("feature") == "borrador" and r.get("channel") == channel:
+            rows.append({**r, "final_text": final})
+    rows.sort(key=lambda r: str(r.get("created_at")), reverse=True)
+    out = []
+    for r in rows:
+        before, after = (r.get("answer") or "").strip(), (r.get("final_text") or "").strip()
+        if before and after and " ".join(before.split()) != " ".join(after.split()):
+            out.append((before, after))
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _requests_since(since: datetime, user_id: UUID | None = None) -> list[dict]:

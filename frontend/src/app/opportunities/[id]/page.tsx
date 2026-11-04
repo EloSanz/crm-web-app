@@ -2,7 +2,8 @@
 
 import React, { useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { safeBackHref } from '@/components/contact/useLeaveGuard';
 import clsx from 'clsx';
 import { Check, MessageCircle, Pencil, Sparkles, Trophy, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -40,6 +41,9 @@ import { formatARS, formatDate, formatQty, sentenceCase, shortRef } from '@/lib/
 export default function OpportunityDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
+  // Al llegar desde una cita de «Ponete al día», volver lleva de nuevo al chat.
+  const volver = useSearchParams()?.get('volver');
+  const back = volver ? { href: safeBackHref(volver, '/opportunities'), label: volver.endsWith('/ponete-al-dia') ? 'Ponete al día' : 'Volver' } : { href: '/opportunities', label: 'Presupuestos' };
 
   const load = useCallback(async () => {
     const [opp, stages, activities, users, events, versions] = await Promise.all([
@@ -128,7 +132,7 @@ export default function OpportunityDetailPage() {
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
-          back={{ href: '/opportunities', label: 'Presupuestos' }}
+          back={back}
           meta={
             <>
               <Punta health={health} status={opp.status} size={20} />

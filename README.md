@@ -141,6 +141,12 @@ en modo simulado, así se desarrolla y se prueba sin gastar.
   El seguimiento anota que el correo partió de un borrador.
 - «Lead a responder»: el cliente escribió y nadie contestó, o el presupuesto lleva 8 días o más sin contacto
   (en ese caso el presupuesto muestra la tarjeta «Retomar el contacto»).
+- El asistente escribe directo en el editor y se le piden ajustes desde abajo («más corto», «insertá el detalle
+  del presupuesto»). Si se pide el detalle, inserta la misma tabla que «Insertar detalle del presupuesto».
+- Respeta lo que el vendedor edita a mano: en cada ajuste compara su última versión con el texto actual y conserva
+  esos cambios. Además guarda lo que se terminó enviando (`final_text`, migración 09) y usa esas correcciones como
+  preferencias de estilo del vendedor en sus próximos borradores.
+- También sirve sin presupuesto: desde la ficha de un cliente o contacto usa sus últimas interacciones.
 - Un vendedor sólo pide borradores de presupuestos o clientes asignados a él.
 
 ### 2 · «Ponete al día» con el cliente (`/companies/<id>/ponete-al-dia`)

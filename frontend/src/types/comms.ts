@@ -77,6 +77,7 @@ export interface PhoneTarget {
 export interface WhatsAppSendPayload extends PhoneTarget {
   text?: string;
   template?: boolean;
+  ai_draft_id?: string | null;
 }
 
 export type ContactLogResult = Activity;

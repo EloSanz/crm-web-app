@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "Corralap <ventas@corralap.com.ar>"
     EMAIL_REPLY_TO: str = ""
     EMAIL_BRAND_NAME: str = "Corralap"
+    # Logo del encabezado del correo (PNG público). Vacío: se usa <FRONTEND_URL>/email/logo-corralap.png.
+    EMAIL_LOGO_URL: str = ""
     RESEND_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

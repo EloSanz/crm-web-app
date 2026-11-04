@@ -20,13 +20,21 @@ class DraftRequest(BaseModel):
     channel: MessageChannel = Field(..., description="email o whatsapp")
     opportunity_id: UUID | None = None
     contact_id: UUID | None = None
+    company_id: UUID | None = None
     phone: str | None = Field(None, max_length=50)
     instruction: str | None = Field(None, max_length=300, description="Ej.: «más corto», «ofrecé pasar a medir»")
+    current_text: str | None = Field(None, max_length=20000, description="Texto actual del editor, con lo que editó")
+    previous_draft: str | None = Field(None, max_length=20000, description="Última versión que escribió el asistente")
 
     @model_validator(mode="after")
     def _needs_target(self):
-        if not self.opportunity_id and not self.contact_id and not (self.phone and self.phone.strip()):
-            raise ValueError("Indicá el presupuesto, el contacto o el teléfono")
+        if (
+            not self.opportunity_id
+            and not self.contact_id
+            and not self.company_id
+            and not (self.phone and self.phone.strip())
+        ):
+            raise ValueError("Indicá el presupuesto, el cliente o el teléfono")
         return self
 
 
@@ -38,6 +46,9 @@ class DraftResponse(BaseModel):
     subject: str | None = None
     body_text: str
     body_html: str | None = None
+    # Párrafos tal cual: «**negrita**», renglones «- » (lista) y la marca [[DETALLE_DEL_PRESUPUESTO]] (la tabla).
+    paragraphs: list[str] = Field(default_factory=list)
+    includes_detail: bool = False
     to_confirm: list[str] = Field(default_factory=list)
     rationale: str | None = None
     simulated: bool

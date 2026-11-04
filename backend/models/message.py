@@ -90,6 +90,7 @@ class _PhoneTarget(BaseModel):
 class WhatsAppSendRequest(_PhoneTarget):
     text: str = Field("", max_length=4096, description="Texto del mensaje")
     template: bool = Field(False, description="Enviar la plantilla aprobada en lugar de texto libre")
+    ai_draft_id: UUID | None = None
 
     @model_validator(mode="after")
     def _needs_text(self):

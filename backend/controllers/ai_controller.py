@@ -62,11 +62,42 @@ def _draft_opportunity(
     return opps[0] if opps else None
 
 
+# Sin presupuesto puntual, el borrador usa las últimas interacciones del cliente (no todo el expediente).
+CLIENT_DRAFT_ENTRIES = 40
+
+
+def _client_dossier(company_id: UUID | None) -> dossier_service.Dossier | None:
+    if not company_id:
+        return None
+    try:
+        dossier = dossier_service.build_for_company(company_id)
+    except HTTPException:
+        return None
+    dossier.entries = dossier.entries[-CLIENT_DRAFT_ENTRIES:]
+    return dossier
+
+
+def _owns_client(session: dict, contact, company_id: UUID | None) -> bool:
+    me = str(session.get("sub") or "")
+    if not me:
+        return False
+    if contact and str(contact.assigned_to) == me:
+        return True
+    if company_id:
+        try:
+            if str(CompanyService.get_company_by_id(company_id).assigned_to) == me:
+                return True
+        except HTTPException:
+            pass
+        return bool(OpportunityService.get_opportunities(company_id=company_id, assigned_to=UUID(me), limit=1))
+    return False
+
+
 @router.post(
     "/drafts",
     response_model=DraftResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Sugerir un borrador de respuesta (no se envía: vuelve al editor para revisarlo)",
+    summary="Sugerir o ajustar un borrador (no se envía: vuelve al editor para revisarlo)",
 )
 def create_draft(data: DraftRequest, authorization: str | None = Header(None)) -> DraftResponse:
     session = session_from_header(authorization)
@@ -79,14 +110,13 @@ def create_draft(data: DraftRequest, authorization: str | None = Header(None)) -
             contact = ContactService.get_contact_by_id(opp.contact_id)
         except HTTPException:
             contact = None
+    company_id = data.company_id or (opp.company_id if opp else None) or (contact.company_id if contact else None)
     # Un vendedor sólo manda al modelo datos de clientes propios.
-    if session.get("role") == SELLER_ROLE and not opp:
-        owner = contact.assigned_to if contact else None
-        if str(owner) != str(session.get("sub")):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Sólo podés pedir borradores para clientes o presupuestos asignados a vos",
-            )
+    if session.get("role") == SELLER_ROLE and not opp and not _owns_client(session, contact, company_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sólo podés pedir borradores para clientes o presupuestos asignados a vos",
+        )
 
     phone = None
     if data.channel == MessageChannel.WHATSAPP:
@@ -94,26 +124,34 @@ def create_draft(data: DraftRequest, authorization: str | None = Header(None)) -
         recent = MessageService.list_messages(phone=phone, channel=data.channel, limit=10) if phone else []
     elif opp:
         recent = MessageService.list_messages(opportunity_id=opp.id, channel=data.channel, limit=10)
+    elif contact:
+        recent = MessageService.list_messages(contact_id=contact.id, channel=data.channel, limit=10)
+    elif company_id:
+        recent = MessageService.list_messages(company_id=company_id, channel=data.channel, limit=10)
     else:
-        recent = MessageService.list_messages(contact_id=contact.id, channel=data.channel, limit=10) if contact else []
+        recent = []
     reason, last_inbound = draft_service.detect_reason(opp, recent)
 
     ctx = draft_service.DraftContext(
         channel=data.channel,
         opportunity=opp,
-        dossier=dossier_service.build_for_opportunity(opp) if opp else None,
+        dossier=dossier_service.build_for_opportunity(opp) if opp else _client_dossier(company_id),
         contact_first_name=draft_service._first(contact.first_name) if contact else None,
         seller_name=session.get("name") or "Equipo Corralap",
         last_inbound=last_inbound,
         reason=reason,
         instruction=data.instruction,
         phone=phone,
+        current_text=data.current_text,
+        previous_draft=data.previous_draft,
+        past_edits=ai_service.recent_edits(user_id, data.channel.value),
+        detail_available=bool(opp and opp.items),
     )
     log = {
         "feature": "borrador",
         "user_id": user_id,
         "opportunity_id": opp.id if opp else None,
-        "company_id": (opp.company_id if opp else None) or (contact.company_id if contact else None),
+        "company_id": company_id,
         "channel": data.channel.value,
         "question": data.instruction,
     }

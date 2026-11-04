@@ -358,3 +358,175 @@ def test_tampered_role_breaks_signature(raw_client: TestClient):
         "/api/ai/status", headers={"X-API-Key": settings.CRM_API_KEY, "Authorization": f"Bearer {tampered}"}
     )
     assert res.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Borrador en el editor: ajustes, cambios del vendedor, tabla y memoria
+# ---------------------------------------------------------------------------
+
+AI_VERSION = (
+    "Hola Silvia, cómo va. Te escribo por el presupuesto para los vestuarios del Club Alem.\n\n"
+    "Sobre lo que nos preguntaste del stock de hierro, lo estoy verificando y te confirmo a la brevedad.\n\n"
+    "¿Me confirmás si las cantidades están bien así o querés ajustar algo antes de cerrarlo?\n\nSaludos,\nFederico"
+)
+USER_VERSION = AI_VERSION.replace(
+    "¿Me confirmás si las cantidades están bien así o querés ajustar algo antes de cerrarlo?",
+    "Confirmanos por favor si las cantidades están bien así o querés ajustar algo antes de cerrarlo.",
+)
+
+
+def test_user_changes_detects_what_the_seller_rewrote():
+    from backend.services.draft_service import user_changes
+
+    changes = user_changes(AI_VERSION, USER_VERSION)
+    assert len(changes) == 1
+    before, after = changes[0]
+    assert before.startswith("¿Me confirmás")
+    assert after.startswith("Confirmanos por favor")
+    assert user_changes(AI_VERSION, AI_VERSION) == []
+
+
+def test_refine_sends_current_text_and_seller_changes(monkeypatch, client: TestClient):
+    _, _, opp = _setup(client, "ajuste")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    calls = []
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append(json)
+        return _model_reply(
+            {
+                "asunto": "",
+                "parrafos": [
+                    "Hola Silvia, cómo va.",
+                    "[[DETALLE_DEL_PRESUPUESTO]]",
+                    "Confirmanos por favor si las cantidades están bien así.",
+                    "[[DETALLE_DEL_PRESUPUESTO]]",
+                ],
+                "datos_a_confirmar": [],
+                "motivo": "Se sumó la tabla.",
+            }
+        )
+
+    monkeypatch.setattr(ai_service.httpx, "post", fake_post)
+    res = client.post(
+        "/api/ai/drafts",
+        json={
+            "channel": "email",
+            "opportunity_id": opp["id"],
+            "instruction": "insertá el detalle del presupuesto",
+            "current_text": USER_VERSION,
+            "previous_draft": AI_VERSION,
+        },
+    )
+    assert res.status_code == 201, res.text
+    draft = res.json()
+    # La tabla va una sola vez y no aparece como texto en el HTML.
+    assert draft["paragraphs"].count("[[DETALLE_DEL_PRESUPUESTO]]") == 1
+    assert draft["includes_detail"] is True
+    assert "DETALLE" not in draft["body_html"]
+    request = calls[0]["messages"][0]["content"][1]["text"]
+    assert "Texto actual del editor" in request
+    assert "Confirmanos por favor" in request
+    assert "Cambios que el vendedor hizo a mano" in request
+    assert "Detalle del presupuesto: disponible" in request
+
+
+def test_simulated_refine_keeps_text_and_adds_table(client: TestClient):
+    _, _, opp = _setup(client, "ajuste-sim")
+    res = client.post(
+        "/api/ai/drafts",
+        json={
+            "channel": "email",
+            "opportunity_id": opp["id"],
+            "instruction": "agregá la tabla con el detalle",
+            "current_text": USER_VERSION,
+        },
+    )
+    draft = res.json()
+    assert "[[DETALLE_DEL_PRESUPUESTO]]" in draft["paragraphs"]
+    assert any(p.startswith("Confirmanos por favor") for p in draft["paragraphs"])
+
+
+def test_whatsapp_never_gets_the_table(monkeypatch, client: TestClient):
+    _, _, opp = _setup(client, "wa-tabla")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        ai_service.httpx,
+        "post",
+        lambda *a, **k: _model_reply(
+            {
+                "asunto": "",
+                "parrafos": ["Hola **Marta**", "[[DETALLE_DEL_PRESUPUESTO]]"],
+                "datos_a_confirmar": [],
+                "motivo": "x",
+            }
+        ),
+    )
+    draft = client.post("/api/ai/drafts", json={"channel": "whatsapp", "opportunity_id": opp["id"]}).json()
+    assert draft["paragraphs"] == ["Hola Marta"]
+
+
+def test_sent_edits_feed_the_next_draft(monkeypatch, client: TestClient):
+    _, contact, opp = _setup(client, "memoria")
+    first = client.post("/api/ai/drafts", json={"channel": "email", "opportunity_id": opp["id"]}).json()
+    edited = first["body_text"].replace("Hola Marta,", "Buen día Marta,")
+    client.post(
+        "/api/email/send",
+        json={
+            "to": [contact["email"]],
+            "subject": "Presupuesto",
+            "html": "".join(f"<p>{p}</p>" for p in edited.split("\n\n")),
+            "opportunity_id": opp["id"],
+            "ai_draft_id": first["id"],
+        },
+    )
+    assert ai_service.recent_edits(ADMIN_ID, "email")
+
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    calls = []
+    monkeypatch.setattr(
+        ai_service.httpx,
+        "post",
+        lambda url, json=None, headers=None, timeout=None: (
+            calls.append(json)
+            or _model_reply({"asunto": "A", "parrafos": ["Hola"], "datos_a_confirmar": [], "motivo": "x"})
+        ),
+    )
+    client.post("/api/ai/drafts", json={"channel": "email", "opportunity_id": opp["id"]})
+    request = calls[0]["messages"][0]["content"][1]["text"]
+    assert "Correcciones que este vendedor hizo en borradores anteriores" in request
+    assert "Buen día Marta" in request
+
+
+def test_draft_for_client_without_quote_uses_recent_interactions(client: TestClient):
+    company = client.post("/api/companies", json={"name": "Constructora Sin Presupuesto"}).json()
+    contact = client.post(
+        "/api/contacts",
+        json={"first_name": "Nora", "last_name": "Paz", "company_id": company["id"], "email": "nora@obra.com.ar"},
+    ).json()
+    client.post(
+        "/api/activities",
+        json={
+            "company_id": company["id"],
+            "contact_id": contact["id"],
+            "activity_type": "llamada",
+            "summary": "Pidió precios de cal",
+        },
+    )
+    res = client.post("/api/ai/drafts", json={"channel": "email", "company_id": company["id"]})
+    assert res.status_code == 201, res.text
+    assert res.json()["reason"] == "contacto"
+    seller = _client_as(VENDEDOR_ID, "ejecutivo_ventas")
+    assert seller.post("/api/ai/drafts", json={"channel": "email", "company_id": company["id"]}).status_code == 403
+
+
+def test_email_template_has_logo_only_on_public_urls(monkeypatch):
+    from backend.services import email_service
+
+    monkeypatch.setattr(settings, "EMAIL_LOGO_URL", "")
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://corralap.vercel.app")
+    assert 'src="https://corralap.vercel.app/email/logo-corralap.png"' in email_service.render_email_template(
+        "<p>x</p>", "A"
+    )
+    monkeypatch.setattr(settings, "FRONTEND_URL", "http://localhost:3000")
+    assert "<img" not in email_service.render_email_template("<p>x</p>", "A")

@@ -2,7 +2,8 @@
 
 import React, { useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { safeBackHref } from '@/components/contact/useLeaveGuard';
 import { Pencil, Plus, Sparkles } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ContactMenu } from '@/components/contact/ContactMenu';
@@ -18,6 +19,7 @@ import { formatDate, telHref } from '@/lib/format';
 
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const volver = useSearchParams()?.get('volver');
   const load = useCallback(async () => {
     const [company, contacts, opportunities, projects] = await Promise.all([
       fetchCompany(id),
@@ -45,7 +47,7 @@ export default function CompanyDetailPage() {
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
-          back={{ href: '/companies', label: 'Clientes' }}
+          back={volver ? { href: safeBackHref(volver, '/companies'), label: volver.endsWith('/ponete-al-dia') ? 'Ponete al día' : 'Volver' } : { href: '/companies', label: 'Clientes' }}
           meta={<Chip tone={st.tone}>{st.label}</Chip>}
           title={c.name}
           actions={

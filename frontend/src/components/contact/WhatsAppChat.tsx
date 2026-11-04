@@ -17,7 +17,7 @@ import { initials } from '@/lib/format';
 import type { CrmMessage, PhoneTarget, WhatsAppConversation } from '@/types/comms';
 import { formatWhatsApp, waLink } from './phone';
 import { safeBackHref } from './useLeaveGuard';
-import { DraftAssistant } from '@/components/ai/DraftAssistant';
+import { TextDraftAssistant } from '@/components/ai/DraftAssistant';
 
 const POLL_MS = 8000;
 
@@ -192,6 +192,11 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [aiDraftId, setAiDraftId] = useState<string | null>(null);
+  const assistantTarget = useMemo(
+    () => ({ channel: 'whatsapp' as const, contact_id: target.contact_id ?? null, phone: target.phone ?? null, opportunity_id: target.opportunity_id ?? null, company_id: target.company_id ?? null }),
+    [target.contact_id, target.phone, target.opportunity_id, target.company_id]
+  );
 
   const query = useMemo(
     () => (target.contact_id ? { contact_id: target.contact_id, opportunity_id: target.opportunity_id ?? undefined } : { phone: target.phone ?? '', opportunity_id: target.opportunity_id ?? undefined }),
@@ -275,7 +280,8 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
     setPendingMsgs((prev) => [...prev, tmp]);
     setText('');
     try {
-      const saved = await sendWhatsApp({ ...target, text: body });
+      const saved = await sendWhatsApp({ ...target, text: body, ai_draft_id: aiDraftId });
+      setAiDraftId(null);
       setConv((c) => (c.messages.some((m) => m.id === saved.id) ? c : { ...c, messages: [...c.messages, saved] }));
     } catch (err) {
       if (!(err instanceof CommsError)) setText((prev) => prev || body);
@@ -426,15 +432,15 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
 
       {conv.window_open && (
         <div className="border-t border-linea bg-chapa px-2.5 pt-2.5 sm:px-3">
-          <DraftAssistant
+          <TextDraftAssistant
             key={lastInboundId(conv.messages)}
-            target={{ channel: 'whatsapp', contact_id: target.contact_id ?? null, phone: target.phone ?? null, opportunity_id: target.opportunity_id ?? null }}
-            onUse={(draft) => {
-              setText(draft.body_text);
+            target={assistantTarget}
+            getText={() => text}
+            setText={(value) => {
+              setText(value);
               requestAnimationFrame(() => inputRef.current?.focus());
             }}
-            compact
-            className="max-h-[45dvh] overflow-y-auto"
+            onApplied={(draft) => setAiDraftId(draft.id)}
           />
         </div>
       )}
