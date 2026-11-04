@@ -92,7 +92,11 @@ class MessageService:
             "error": error,
             "created_at": (created_at or datetime.now(timezone.utc)).isoformat(),
         }
-        for key, value in (("thread_id", thread_id), ("from_address", from_address), ("rfc_message_id", rfc_message_id)):
+        for key, value in (
+            ("thread_id", thread_id),
+            ("from_address", from_address),
+            ("rfc_message_id", rfc_message_id),
+        ):
             if value:
                 record[key] = value[:998]
         users = UserService.name_map()
@@ -104,7 +108,11 @@ class MessageService:
             except Exception as col_err:
                 if not any(c in str(col_err) for c in OPTIONAL_COLUMNS):
                     raise
-                res = client.table("crm_messages").insert({k: v for k, v in record.items() if k not in OPTIONAL_COLUMNS}).execute()
+                res = (
+                    client.table("crm_messages")
+                    .insert({k: v for k, v in record.items() if k not in OPTIONAL_COLUMNS})
+                    .execute()
+                )
                 if res.data:
                     # Sin la migración el hilo no queda en la base: se recuerda en memoria para sincronizar respuestas.
                     _mock_threads[str(res.data[0]["id"])] = {k: record[k] for k in OPTIONAL_COLUMNS if k in record}

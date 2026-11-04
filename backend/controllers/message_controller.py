@@ -200,7 +200,9 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
         if not original or original.channel != MessageChannel.EMAIL:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontramos el correo a responder")
         if ctx.opportunity_id and original.opportunity_id and str(original.opportunity_id) != str(ctx.opportunity_id):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Ese correo es de otro presupuesto")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Ese correo es de otro presupuesto"
+            )
         # Los hilos son de cada casilla: sólo se continúa uno que está en la cuenta de quien envía.
         if account and original.thread_id and str(original.user_id) == str(ctx.user_id):
             thread_id, in_reply_to = original.thread_id, original.rfc_message_id
@@ -221,7 +223,9 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
                 sender_name=ctx.session.get("name"),
             )
         except gmail_service.GmailError as err:
-            MessageService.create(**common, status=MessageStatus.FALLIDO, provider=gmail_service.PROVIDER, error=err.message)
+            MessageService.create(
+                **common, status=MessageStatus.FALLIDO, provider=gmail_service.PROVIDER, error=err.message
+            )
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=err.message)
         simulated = False
         warnings = sent.warnings
