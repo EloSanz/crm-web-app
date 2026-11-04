@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { Boxes, ChartLine, ClipboardList, Home, MapPinned, Search, ShieldCheck, Users, UsersRound } from 'lucide-react';
-import { useCurrentUser } from '@/lib/useUser';
+import { clearStoredAuth, useCurrentUser } from '@/lib/useUser';
+import { buildApiUrl, getAuthHeaders } from '@/lib/api';
 import { isAdmin, isManager } from '@/lib/roles';
 import { Logo } from '@/components/brand/Logo';
 import { UserNav, UserMenuCompact } from './UserNav';
@@ -26,7 +27,29 @@ export const MANAGE_NAV = [
   { label: 'Usuarios', href: '/usuarios', icon: ShieldCheck, match: (p: string) => p.startsWith('/usuarios'), role: 'admin' as const },
 ];
 
+/** Sin sesión, o con un token vencido / sin firma (sesiones viejas), se vuelve al login. Se valida una vez por pestaña. */
+function useSessionGuard() {
+  const router = useRouter();
+  useEffect(() => {
+    const token = localStorage.getItem('crm_access_token');
+    const toLogin = () => {
+      clearStoredAuth();
+      sessionStorage.removeItem('crm_session_ok');
+      router.replace('/login');
+    };
+    if (!token) return toLogin();
+    if (sessionStorage.getItem('crm_session_ok') === token) return;
+    fetch(buildApiUrl('/api/auth/me'), { headers: getAuthHeaders(), cache: 'no-store' })
+      .then((res) => {
+        if (res.status === 401) toLogin();
+        else if (res.ok) sessionStorage.setItem('crm_session_ok', token);
+      })
+      .catch(() => undefined);
+  }, [router]);
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  useSessionGuard();
   const pathname = usePathname() || '/';
   const [searchOpen, setSearchOpen] = useState(false);
   const user = useCurrentUser();

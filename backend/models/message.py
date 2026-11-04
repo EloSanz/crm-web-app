@@ -47,6 +47,10 @@ class MessageResponse(BaseModel):
     phone: str | None = None
     provider: str | None = None
     provider_message_id: str | None = None
+    # Gmail: hilo, remitente y cabecera Message-ID (para responder en el mismo hilo).
+    thread_id: str | None = None
+    from_address: str | None = None
+    rfc_message_id: str | None = None
     error: str | None = None
     created_at: datetime
     # Sólo en la respuesta del envío (no se persiste): avisos como adjuntos que no se pudieron descargar.
@@ -64,6 +68,10 @@ class EmailSendRequest(BaseModel):
     opportunity_id: UUID | None = None
     contact_id: UUID | None = None
     company_id: UUID | None = None
+    # Responder dentro del hilo de un correo ya registrado (sólo con Gmail conectado).
+    reply_to_message_id: UUID | None = None
+    # El cuerpo salió de un borrador sugerido por el asistente (queda anotado en el seguimiento).
+    ai_draft_id: UUID | None = None
 
 
 class _PhoneTarget(BaseModel):
@@ -82,6 +90,7 @@ class _PhoneTarget(BaseModel):
 class WhatsAppSendRequest(_PhoneTarget):
     text: str = Field("", max_length=4096, description="Texto del mensaje")
     template: bool = Field(False, description="Enviar la plantilla aprobada en lugar de texto libre")
+    ai_draft_id: UUID | None = None
 
     @model_validator(mode="after")
     def _needs_text(self):

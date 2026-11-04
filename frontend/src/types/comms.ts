@@ -24,6 +24,9 @@ export interface CrmMessage {
   phone?: string | null;
   provider?: string | null;
   provider_message_id?: string | null;
+  /** Gmail: hilo y remitente. */
+  thread_id?: string | null;
+  from_address?: string | null;
   error?: string | null;
   created_at: string;
   /** Sólo en la respuesta del envío: adjuntos que no se pudieron incluir, etc. */
@@ -39,6 +42,10 @@ export interface EmailSendPayload {
   opportunity_id?: string | null;
   contact_id?: string | null;
   company_id?: string | null;
+  /** Responder dentro del hilo de un correo registrado (con Gmail conectado). */
+  reply_to_message_id?: string | null;
+  /** El cuerpo salió de un borrador del asistente. */
+  ai_draft_id?: string | null;
 }
 
 export interface WhatsAppStatus {
@@ -70,6 +77,7 @@ export interface PhoneTarget {
 export interface WhatsAppSendPayload extends PhoneTarget {
   text?: string;
   template?: boolean;
+  ai_draft_id?: string | null;
 }
 
 export type ContactLogResult = Activity;

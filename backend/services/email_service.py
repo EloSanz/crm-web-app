@@ -301,10 +301,41 @@ def html_to_text(html: str | None) -> str:
 # ---------------------------------------------------------------------------
 
 
+def logo_url() -> str | None:
+    """Logo publicado para el encabezado. En localhost no: el cliente que recibe el correo no lo podría cargar."""
+    url = (settings.EMAIL_LOGO_URL or "").strip()
+    if not url:
+        base = (settings.FRONTEND_URL or "").rstrip("/")
+        url = f"{base}/email/logo-corralap.png" if base else ""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host or host in {"localhost", "127.0.0.1"} or host.endswith(".localhost"):
+        return None
+    return url
+
+
 def render_email_template(body_html: str, subject: str) -> str:
     brand = htmllib.escape((settings.EMAIL_BRAND_NAME or "Corralap").upper())
     title = htmllib.escape(subject or "")
     font = "Montserrat,Arial,Helvetica,sans-serif"
+    logo = logo_url()
+    mark = (
+        f'<td width="40" style="width:40px;padding:0 12px 0 0;vertical-align:middle;">'
+        f'<img src="{htmllib.escape(logo, quote=True)}" width="40" height="40" alt="{brand}" '
+        'style="display:block;width:40px;height:40px;border:0;border-radius:8px;"></td>'
+        if logo
+        else ""
+    )
+    header = (
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f"{mark}"
+        f'<td style="vertical-align:middle;font-family:{font};font-size:17px;font-weight:800;'
+        f'letter-spacing:3px;color:#16212B;">{brand}</td>'
+        "</tr></table>"
+    )
     return (
         '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -316,8 +347,7 @@ def render_email_template(body_html: str, subject: str) -> str:
         'style="max-width:640px;background-color:#ffffff;border-radius:12px;">'
         '<tr><td style="height:6px;line-height:6px;font-size:0;background-color:#FFC20E;'
         'border-radius:12px 12px 0 0;">&nbsp;</td></tr>'
-        f'<tr><td style="padding:22px 28px 4px 28px;font-family:{font};font-size:17px;font-weight:800;'
-        f'letter-spacing:3px;color:#16212B;">{brand}</td></tr>'
+        f'<tr><td style="padding:22px 28px 4px 28px;">{header}</td></tr>'
         f'<tr><td style="padding:14px 28px 28px 28px;font-family:{font};font-size:15px;line-height:1.6;'
         f'color:#16212B;">{body_html}</td></tr>'
         "</table></td></tr></table></body></html>"
@@ -429,20 +459,31 @@ def _send_resend(
     return EmailResult(status="enviado", provider="resend", provider_message_id=data.get("id"), warnings=warnings)
 
 
-def _send_smtp(
-    to: list[str], cc: list[str], subject: str, html: str, text: str, attachments: list[ActivityAttachment]
-) -> EmailResult:
-    if not settings.SMTP_HOST:
-        raise EmailSendError("Falta configurar SMTP_HOST para enviar correos.", "smtp")
-    sender = settings.EMAIL_FROM or settings.SMTP_USER
+def build_mime(
+    *,
+    sender: str,
+    to: list[str],
+    cc: list[str],
+    subject: str,
+    html: str,
+    text: str,
+    attachments: list[ActivityAttachment],
+    reply_to: str | None = None,
+    in_reply_to: str | None = None,
+) -> tuple[EmailMessage, str, list[str]]:
+    """Arma el correo MIME (texto + HTML + adjuntos). Lo usan SMTP y Gmail."""
     msg = EmailMessage()
     msg["From"] = sender
     msg["To"] = ", ".join(to)
     if cc:
         msg["Cc"] = ", ".join(cc)
     msg["Subject"] = subject
-    if settings.EMAIL_REPLY_TO:
-        msg["Reply-To"] = settings.EMAIL_REPLY_TO
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    if in_reply_to:
+        # Así el cliente lo ve dentro de la misma conversación.
+        msg["In-Reply-To"] = in_reply_to
+        msg["References"] = in_reply_to
     msg["Date"] = formatdate(localtime=True)
     domain = parseaddr(sender)[1].rpartition("@")[2] or None
     message_id = make_msgid(domain=domain)
@@ -459,6 +500,24 @@ def _send_smtp(
         ctype = a.content_type or mimetypes.guess_type(a.name)[0] or "application/octet-stream"
         maintype, _, subtype = ctype.partition("/")
         msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=a.name)
+    return msg, message_id, warnings
+
+
+def _send_smtp(
+    to: list[str], cc: list[str], subject: str, html: str, text: str, attachments: list[ActivityAttachment]
+) -> EmailResult:
+    if not settings.SMTP_HOST:
+        raise EmailSendError("Falta configurar SMTP_HOST para enviar correos.", "smtp")
+    msg, message_id, warnings = build_mime(
+        sender=settings.EMAIL_FROM or settings.SMTP_USER,
+        to=to,
+        cc=cc,
+        subject=subject,
+        html=html,
+        text=text,
+        attachments=attachments,
+        reply_to=settings.EMAIL_REPLY_TO or None,
+    )
 
     context = ssl.create_default_context()
     server: smtplib.SMTP | None = None

@@ -27,7 +27,7 @@ from backend.models.message import (
     WhatsAppStatusResponse,
 )
 from backend.models.opportunity import OpportunityResponse, OpportunityStatus
-from backend.services import email_service, whatsapp_service
+from backend.services import ai_service, email_service, gmail_service, whatsapp_service
 from backend.services.activity_service import ActivityService
 from backend.services.company_service import CompanyService
 from backend.services.contact_service import ContactService
@@ -191,28 +191,82 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
         "body_text": text,
         "attachments": data.attachments,
     }
-    try:
-        result = email_service.send_email(
-            to=to, cc=cc, subject=subject, html=full_html, text=text, attachments=data.attachments
-        )
-    except email_service.EmailSendError as err:
-        MessageService.create(**common, status=MessageStatus.FALLIDO, provider=err.provider, error=err.message)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=err.message)
 
-    simulated = result.status == "simulado"
-    message = MessageService.create(
-        **common,
-        status=MessageStatus.SIMULADO if simulated else MessageStatus.ENVIADO,
-        provider=result.provider,
-        provider_message_id=result.provider_message_id,
-    )
+    # Con Gmail conectado sale de la casilla del vendedor; si no, por el proveedor del CRM (respaldo).
+    account = gmail_service.get_account(ctx.user_id) if gmail_service.is_configured() else None
+    thread_id = in_reply_to = None
+    if data.reply_to_message_id:
+        original = MessageService.get(data.reply_to_message_id)
+        if not original or original.channel != MessageChannel.EMAIL:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontramos el correo a responder")
+        if ctx.opportunity_id and original.opportunity_id and str(original.opportunity_id) != str(ctx.opportunity_id):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Ese correo es de otro presupuesto"
+            )
+        # Los hilos son de cada casilla: sólo se continúa uno que está en la cuenta de quien envía.
+        if account and original.thread_id and str(original.user_id) == str(ctx.user_id):
+            thread_id, in_reply_to = original.thread_id, original.rfc_message_id
+
+    warnings: list[str] = []
+    if account:
+        try:
+            sent = gmail_service.send(
+                account,
+                to=to,
+                cc=cc,
+                subject=subject,
+                html=full_html,
+                text=text,
+                attachments=data.attachments,
+                thread_id=thread_id,
+                in_reply_to=in_reply_to,
+                sender_name=ctx.session.get("name"),
+            )
+        except gmail_service.GmailError as err:
+            MessageService.create(
+                **common, status=MessageStatus.FALLIDO, provider=gmail_service.PROVIDER, error=err.message
+            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=err.message)
+        simulated = False
+        warnings = sent.warnings
+        message = MessageService.create(
+            **common,
+            status=MessageStatus.ENVIADO,
+            provider=gmail_service.PROVIDER,
+            provider_message_id=sent.message_id,
+            thread_id=sent.thread_id,
+            from_address=sent.sender,
+            rfc_message_id=sent.rfc_message_id,
+        )
+    else:
+        try:
+            result = email_service.send_email(
+                to=to, cc=cc, subject=subject, html=full_html, text=text, attachments=data.attachments
+            )
+        except email_service.EmailSendError as err:
+            MessageService.create(**common, status=MessageStatus.FALLIDO, provider=err.provider, error=err.message)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=err.message)
+        simulated = result.status == "simulado"
+        warnings = result.warnings
+        message = MessageService.create(
+            **common,
+            status=MessageStatus.SIMULADO if simulated else MessageStatus.ENVIADO,
+            provider=result.provider,
+            provider_message_id=result.provider_message_id,
+        )
 
     lines = [f"Para: {', '.join(to)}"]
     if cc:
         lines.append(f"CC: {', '.join(cc)}")
+    if account:
+        lines.append(f"Enviado desde Gmail ({account.email}).")
     if simulated:
         lines.append("Envío simulado: no hay un proveedor de correo configurado.")
-    lines += result.warnings
+    if data.ai_draft_id:
+        lines.append("Partió de un borrador del asistente, revisado por el vendedor.")
+        # Lo que se mandó de verdad: el asistente aprende de lo que el vendedor corrigió.
+        ai_service.set_final(data.ai_draft_id, text)
+    lines += warnings
     if text:
         lines += ["", text[:2000]]
     ActivityService.create_activity(
@@ -227,7 +281,7 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
         ),
         user_id=ctx.user_id,
     )
-    return message.model_copy(update={"warnings": result.warnings})
+    return message.model_copy(update={"warnings": warnings})
 
 
 @router.get(
@@ -341,6 +395,8 @@ def whatsapp_send(data: WhatsAppSendRequest, authorization: str | None = Header(
         raise HTTPException(status_code=err.http_status, detail=err.message)
 
     message = MessageService.create(**common, status=MessageStatus.ENVIADO, provider_message_id=wamid)
+    if data.ai_draft_id and not data.template:
+        ai_service.set_final(data.ai_draft_id, text)
     if not _continues_conversation(message):
         ActivityService.create_activity(
             ActivityCreate(

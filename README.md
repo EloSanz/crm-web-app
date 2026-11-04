@@ -129,6 +129,62 @@ Para desarrollo local y pruebas de acceso:
 
 ---
 
+## 🤖 Asistente con IA y Gmail del vendedor
+
+Tres módulos que cierran el desarrollo (planes de GADS, escenarios 1 a 3). Los tres funcionan **sin credenciales**
+en modo simulado, así se desarrolla y se prueba sin gastar.
+
+### 1 · Borradores de respuesta (`POST /api/ai/drafts`)
+- En **Nuevo correo** y en el **chat de WhatsApp**, el botón «Sugerir respuesta» arma un borrador con el
+  presupuesto, sus materiales, el seguimiento y los últimos mensajes. Se puede pedir otra versión («más corto»).
+- El borrador **nunca sale solo**: «Usar borrador» lo pasa al editor y el vendedor lo revisa y lo manda.
+  El seguimiento anota que el correo partió de un borrador.
+- «Lead a responder»: el cliente escribió y nadie contestó, o el presupuesto lleva 8 días o más sin contacto
+  (en ese caso el presupuesto muestra la tarjeta «Retomar el contacto»).
+- El asistente escribe directo en el editor y se le piden ajustes desde abajo («más corto», «insertá el detalle
+  del presupuesto»). Si se pide el detalle, inserta la misma tabla que «Insertar detalle del presupuesto».
+- Respeta lo que el vendedor edita a mano: en cada ajuste compara su última versión con el texto actual y conserva
+  esos cambios. Además guarda lo que se terminó enviando (`final_text`, migración 09) y usa esas correcciones como
+  preferencias de estilo del vendedor en sus próximos borradores.
+- También sirve sin presupuesto: desde la ficha de un cliente o contacto usa sus últimas interacciones.
+- Un vendedor sólo pide borradores de presupuestos o clientes asignados a él.
+
+### 2 · «Ponete al día» con el cliente (`/companies/<id>/ponete-al-dia`)
+- Resumen sin costo (presupuestos, cotizado, último contacto) y 10 preguntas sugeridas.
+- Sin base vectorial: el expediente completo del cliente (presupuestos, etapas, versiones, actividades y mensajes
+  del cliente) entra en el prompt con referencias `[F12]`. Cada dato de la respuesta lleva su cita y la cita
+  lleva a la actividad exacta del seguimiento (queda resaltada).
+- Las citas inventadas se descartan en el backend; una respuesta sin fuentes se marca para verificarla y
+  si el historial no alcanza responde «No lo encuentro en el historial del cliente».
+- Pueden preguntar el admin y el responsable comercial por cualquier cliente; un vendedor, por los clientes
+  asignados a él o con algún presupuesto suyo (el cliente heredado).
+
+### Costo y control del modelo
+- `ANTHROPIC_API_KEY` vacío = modo simulado. Con clave, usa `AI_MODEL` (por defecto `claude-opus-5-5`) con
+  salida JSON con esquema y caché del expediente (varias preguntas seguidas pagan el historial una vez).
+- Cada consulta queda en `crm_ai_requests` (quién, sobre qué cliente, tokens y costo). Antes de llamar se controla
+  `AI_MONTHLY_BUDGET_USD` (tope mensual) y `AI_DAILY_REQUESTS_PER_USER`. `GET /api/ai/status` muestra el gasto.
+
+### 3 · Correo desde el Gmail del vendedor (`/cuenta/correo`)
+- El vendedor conecta su cuenta (OAuth de Google, permisos `gmail.send` y `gmail.readonly`). Los tokens se guardan
+  cifrados (Fernet) en `crm_gmail_accounts`.
+- Con la cuenta conectada, los correos del CRM salen de su dirección; «Responder» en la sección **Correos** del
+  presupuesto sigue el mismo hilo. Sin cuenta conectada se usa `EMAIL_PROVIDER` (Resend / SMTP) como respaldo.
+- Las respuestas se consultan cada tanto (al abrir el presupuesto, con «Buscar respuestas» y con el cron diario
+  de Vercel en `/api/gmail/cron`). Sólo entran respuestas a hilos iniciados desde el CRM, sin duplicar: se crean
+  el mensaje entrante y la actividad «Correo recibido».
+- **Límites de Google:** `gmail.readonly` es un permiso restringido. En modo prueba la app admite hasta 100 usuarios
+  de prueba y el permiso vence a los 7 días (hay que volver a conectar). Para producción hace falta la
+  verificación de la app por Google.
+
+### Puesta en marcha
+1. Aplicar `migrations/08_asistente_ia_y_gmail.sql` en Supabase (idempotente).
+2. Completar las variables nuevas de `.env.example` (todas opcionales).
+3. **El token de sesión ahora está firmado** (HMAC con `JWT_SECRET_KEY`) y vence según `ACCESS_TOKEN_EXPIRE_MINUTES`:
+   las sesiones viejas vuelven al login una vez. En producción, `JWT_SECRET_KEY` tiene que ser un secreto propio.
+
+---
+
 ## 📋 Reglas Invariantes de Negocio (Consigna UNLaM)
 
 1. **Historial inmutable**: Cada cambio de etapa y actividad se guarda como registro independiente y no se sobreescribe.

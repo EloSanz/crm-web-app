@@ -64,28 +64,9 @@ export function getAuthHeaders(): HeadersInit {
     'X-API-Key': CRM_CLIENT_API_KEY,
   };
   if (typeof window !== 'undefined') {
-    let token = localStorage.getItem('crm_access_token');
-    // Si aún no inició sesión explícitamente, autoconfiguramos el token de la sesión activa del CRM
-    if (!token) {
-      // Default superadmin token pre-generado: sub=00000000-0000-0000-0000-000000000001, role=admin
-      const defaultAdminToken =
-        'crm_eyJzdWIiOiAiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwgImVtYWlsIjogImFkbWluQGNybS5jb20iLCAicm9sZSI6ICJhZG1pbiIsICJuYW1lIjogIkFkbWluaXN0cmFkb3IgQ1JNIiwgImV4cCI6IDI1MzQwMDI1NjAwfQ==';
-      localStorage.setItem('crm_access_token', defaultAdminToken);
-      if (!localStorage.getItem('crm_user')) {
-        localStorage.setItem(
-          'crm_user',
-          JSON.stringify({
-            id: '00000000-0000-0000-0000-000000000001',
-            email: 'admin@crm.com',
-            full_name: 'Administrador CRM',
-            role: 'admin',
-            is_active: true,
-          })
-        );
-      }
-      token = defaultAdminToken;
-    }
-    headers['Authorization'] = `Bearer ${token}`;
+    // El token lo firma el backend al iniciar sesión; sin token, AppLayout manda al login.
+    const token = localStorage.getItem('crm_access_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }

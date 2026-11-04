@@ -3,7 +3,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
-import { Loader2, Paperclip, Plus, Send, TableProperties, X } from 'lucide-react';
+import { Loader2, Mail, Paperclip, Plus, Send, TableProperties, X } from 'lucide-react';
+import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -13,7 +14,11 @@ import { LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { formatBytes } from '@/components/opportunities/AttachmentViewer';
 import { fetchCompany, fetchCompanyContacts, fetchContact, fetchOpportunity, uploadAttachment } from '@/lib/api';
-import { sendEmail } from '@/lib/api-comms';
+import { fetchMessages, sendEmail } from '@/lib/api-comms';
+import { fetchGmailStatus } from '@/lib/api-ai';
+import { EditorDraftAssistant } from '@/components/ai/DraftAssistant';
+import type { AIDraft, GmailStatus } from '@/types/ai';
+import type { CrmMessage } from '@/types/comms';
 import { useLoad } from '@/lib/useLoad';
 import { formatARS, formatARSCents, formatQty, shortRef } from '@/lib/format';
 import type { ActivityAttachment, Company, Contact, Opportunity } from '@/types/crm';
@@ -31,6 +36,10 @@ export interface ComposeParams {
   companyId?: string;
   to?: string;
   back?: string;
+  /** Pedir un borrador al asistente apenas abre. */
+  suggest?: boolean;
+  /** Id del correo (del CRM) que se está respondiendo: sale en el mismo hilo. */
+  replyTo?: string;
 }
 
 interface Loaded {
@@ -38,6 +47,8 @@ interface Loaded {
   contact: Contact | null;
   company: Company | null;
   companyContacts: Contact[];
+  replyTo: CrmMessage | null;
+  gmail: GmailStatus | null;
 }
 
 interface Pending {
@@ -81,18 +92,21 @@ function presupuestoData(opp: Opportunity): PresupuestoTablaData {
 
 /** Redactar un correo al cliente, con formato y adjuntos, desde el presupuesto o la ficha. */
 export function ComposeEmail(params: ComposeParams) {
-  const { opportunityId, contactId, companyId } = params;
+  const { opportunityId, contactId, companyId, replyTo } = params;
   const load = useCallback(async (): Promise<Loaded> => {
     const opp = opportunityId ? await fetchOpportunity(opportunityId).catch(() => null) : null;
     const cId = contactId || opp?.contact_id || null;
     const coId = companyId || opp?.company_id || null;
-    const [contact, company, companyContacts] = await Promise.all([
+    const [contact, company, companyContacts, thread, gmail] = await Promise.all([
       cId ? fetchContact(cId).catch(() => null) : Promise.resolve(null),
       coId ? fetchCompany(coId).catch(() => null) : Promise.resolve(null),
       coId ? fetchCompanyContacts(coId).catch(() => [] as Contact[]) : Promise.resolve([] as Contact[]),
+      replyTo && opp ? fetchMessages({ opportunity_id: opp.id, channel: 'email' }).catch(() => [] as CrmMessage[]) : Promise.resolve([] as CrmMessage[]),
+      fetchGmailStatus().catch(() => null),
     ]);
-    return { opp, contact, company: company ?? null, companyContacts };
-  }, [opportunityId, contactId, companyId]);
+    const original = thread.find((m) => m.id === replyTo) ?? null;
+    return { opp, contact, company: company ?? null, companyContacts, replyTo: original, gmail };
+  }, [opportunityId, contactId, companyId, replyTo]);
   const { data, loading } = useLoad(load);
 
   if (loading || !data) {
@@ -108,17 +122,24 @@ export function ComposeEmail(params: ComposeParams) {
 function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded }) {
   const router = useRouter();
   const toast = useToast();
-  const { opp, contact, company, companyContacts } = loaded;
+  const { opp, contact, company, companyContacts, replyTo, gmail } = loaded;
 
   const backHref = safeBackHref(
     params.back,
     opp ? `/opportunities/${opp.id}` : contact ? `/contacts/${contact.id}` : company ? `/companies/${company.id}` : '/opportunities'
   );
+  const replyAddress = replyTo ? (replyTo.direction === 'entrante' ? senderEmail(replyTo.from_address) : replyTo.to_addresses[0]) : null;
   const initialTo = useMemo(() => {
-    const first = params.to || contact?.email;
+    const first = replyAddress || params.to || contact?.email;
     return first ? [first] : [];
-  }, [params.to, contact?.email]);
-  const initialSubject = opp ? `Presupuesto ${opp.title} · Corralap` : '';
+  }, [replyAddress, params.to, contact?.email]);
+  const initialSubject = replyTo?.subject
+    ? /^re:/i.test(replyTo.subject)
+      ? replyTo.subject
+      : `Re: ${replyTo.subject}`
+    : opp
+      ? `Presupuesto ${opp.title} · Corralap`
+      : '';
   const initialHtml = contact?.first_name ? `<p>Hola ${escapeHtml(contact.first_name)},</p><p></p>` : '';
 
   const [to, setTo] = useState<string[]>(initialTo);
@@ -131,6 +152,8 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [tried, setTried] = useState(false);
+  const [aiDraftId, setAiDraftId] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onBodyChange = useCallback((html: string, empty: boolean) => setBody({ html, empty }), []);
@@ -191,6 +214,20 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
     }
   };
 
+  // El asistente ya escribió en el editor: acá sólo se toma el asunto (si no se tocó) y el id para el seguimiento.
+  const applyDraft = (draft: AIDraft) => {
+    if (draft.subject && (!subject.trim() || subject === initialSubject) && !replyTo) setSubject(draft.subject);
+    setAiDraftId(draft.id);
+  };
+  const detail = useMemo(() => (opp && opp.items.length > 0 ? presupuestoData(opp) : null), [opp]);
+  const assistantTarget = useMemo(
+    () =>
+      opp
+        ? { channel: 'email' as const, opportunity_id: opp.id }
+        : { channel: 'email' as const, contact_id: contact?.id ?? null, company_id: company?.id ?? null },
+    [opp, contact?.id, company?.id]
+  );
+
   const insertDetail = () => {
     if (!editor || !opp) return;
     insertPresupuestoTabla(editor, presupuestoData(opp));
@@ -211,9 +248,12 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
         opportunity_id: opp?.id ?? null,
         contact_id: contact?.id ?? null,
         company_id: company?.id ?? null,
+        reply_to_message_id: replyTo?.id ?? null,
+        ai_draft_id: aiDraftId,
       });
       setSent(true);
-      if (msg.status === 'simulado') toast.info('Correo simulado', 'Falta configurar el proveedor de correo. Quedó en el seguimiento.');
+      if (msg.provider === 'gmail') toast.success('Correo enviado desde tu Gmail', to.join(', '));
+      else if (msg.status === 'simulado') toast.info('Correo simulado', 'Falta configurar el proveedor de correo. Quedó en el seguimiento.');
       else toast.success('Correo enviado', to.join(', '));
       if (msg.warnings?.length) toast.warning('Algunos adjuntos no se enviaron', msg.warnings.join(' · '));
       router.push(backHref);
@@ -228,7 +268,8 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeader back={{ href: backHref, label: opp?.title || clientName || 'Volver' }} title="Nuevo correo" />
+        <PageHeader back={{ href: backHref, label: opp?.title || clientName || 'Volver' }} title={replyTo ? 'Responder correo' : 'Nuevo correo'} />
+        <SenderNote gmail={gmail} inThread={Boolean(replyTo?.thread_id)} />
 
         <form
           noValidate
@@ -325,9 +366,30 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
               )}
             </Field>
 
-            <div className="min-w-0">
-              <MailEditor editor={editor} />
+            <div className="min-w-0 space-y-2.5">
+              <div className="relative">
+                <MailEditor editor={editor} />
+                {aiBusy && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[49px] z-[1] flex items-start justify-center rounded-b-xl bg-chapa/70 pt-10" aria-hidden>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-pavonado px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-alzada">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Escribiendo…
+                    </span>
+                  </div>
+                )}
+              </div>
               {tried && bodyError && <p className="mt-1.5 text-[13px] font-semibold text-rojo-tinta">{bodyError}</p>}
+              {(opp || contact || company) && (
+                <EditorDraftAssistant
+                  editor={editor}
+                  target={assistantTarget}
+                  detail={detail}
+                  isPristine={() => !editor || editor.isEmpty || editor.getHTML() === initialHtml}
+                  onApplied={applyDraft}
+                  onBusyChange={setAiBusy}
+                  autoStart={params.suggest}
+                />
+              )}
             </div>
 
             {pending.length > 0 && (
@@ -414,5 +476,39 @@ function ComposeForm({ params, loaded }: { params: ComposeParams; loaded: Loaded
         />
       )}
     </AppLayout>
+  );
+}
+
+/** "Lucía <lucia@x.com>" → "lucia@x.com". */
+function senderEmail(from: string | null | undefined): string | null {
+  if (!from) return null;
+  const match = from.match(/<([^>]+)>/);
+  return (match ? match[1] : from).trim() || null;
+}
+
+/** De qué casilla sale el correo: el Gmail del vendedor o el remitente del CRM. */
+function SenderNote({ gmail, inThread }: { gmail: GmailStatus | null; inThread: boolean }) {
+  if (!gmail) return null;
+  if (gmail.connected) {
+    return (
+      <p className="-mt-3 flex items-center gap-1.5 text-sm text-tiza">
+        <Mail className="w-4 h-4 shrink-0" aria-hidden />
+        <span>
+          Sale desde tu Gmail <span className="font-semibold text-tinta">{gmail.email}</span>
+          {inThread ? ', dentro de la misma conversación.' : '. Las respuestas del cliente llegan solas al seguimiento.'}
+        </span>
+      </p>
+    );
+  }
+  return (
+    <p className="-mt-3 flex flex-wrap items-center gap-x-1.5 text-sm text-tiza">
+      <Mail className="w-4 h-4 shrink-0" aria-hidden />
+      <span>Sale desde la casilla de Corralap.</span>
+      {gmail.configured && (
+        <Link href="/cuenta/correo" className="font-semibold text-tinta underline decoration-linea-fuerte hover:decoration-tinta">
+          Conectá tu Gmail
+        </Link>
+      )}
+    </p>
   );
 }
