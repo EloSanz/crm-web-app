@@ -17,6 +17,7 @@ import { initials } from '@/lib/format';
 import type { CrmMessage, PhoneTarget, WhatsAppConversation } from '@/types/comms';
 import { formatWhatsApp, waLink } from './phone';
 import { safeBackHref } from './useLeaveGuard';
+import { DraftAssistant } from '@/components/ai/DraftAssistant';
 
 const POLL_MS = 8000;
 
@@ -190,6 +191,7 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
   const [templateSending, setTemplateSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const query = useMemo(
     () => (target.contact_id ? { contact_id: target.contact_id, opportunity_id: target.opportunity_id ?? undefined } : { phone: target.phone ?? '', opportunity_id: target.opportunity_id ?? undefined }),
@@ -422,6 +424,21 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
         </div>
       )}
 
+      {conv.window_open && (
+        <div className="border-t border-linea bg-chapa px-2.5 pt-2.5 sm:px-3">
+          <DraftAssistant
+            key={lastInboundId(conv.messages)}
+            target={{ channel: 'whatsapp', contact_id: target.contact_id ?? null, phone: target.phone ?? null, opportunity_id: target.opportunity_id ?? null }}
+            onUse={(draft) => {
+              setText(draft.body_text);
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+            compact
+            className="max-h-[45dvh] overflow-y-auto"
+          />
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -433,6 +450,7 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
           Mensaje
         </label>
         <textarea
+          ref={inputRef}
           id="whatsapp-texto"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -455,4 +473,10 @@ function ChatView({ initial, name, backHref, target }: { initial: WhatsAppConver
       </form>
     </section>
   );
+}
+
+/** Cambia cuando el cliente escribe algo nuevo: el borrador anterior deja de servir. */
+function lastInboundId(messages: CrmMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) if (messages[i].direction === 'entrante') return messages[i].id;
+  return 'sin-entrantes';
 }

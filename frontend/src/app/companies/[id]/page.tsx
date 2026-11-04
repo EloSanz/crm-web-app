@@ -3,7 +3,7 @@
 import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Sparkles } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ContactMenu } from '@/components/contact/ContactMenu';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -51,6 +51,10 @@ export default function CompanyDetailPage() {
           actions={
             <>
               <ContactMenu company={c} />
+              <ButtonLink href={`/companies/${c.id}/ponete-al-dia`} variant="secundario">
+                <Sparkles className="w-4 h-4" aria-hidden />
+                Ponete al día
+              </ButtonLink>
               <ButtonLink href={`/companies/${c.id}/editar`} variant="secundario">
                 <Pencil className="w-4 h-4" aria-hidden />
                 Editar

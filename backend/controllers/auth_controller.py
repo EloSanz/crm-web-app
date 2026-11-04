@@ -1,41 +1,56 @@
 import base64
+import hashlib
+import hmac
 import json
 import time
 
 from fastapi import APIRouter, Header, HTTPException, status
 
+from backend.config import settings
 from backend.models.auth import LoginRequest, LoginResponse, UserResponse
 from backend.services.supabase_service import AuthService
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
+def _sign(payload_b64: str) -> str:
+    digest = hmac.new(settings.JWT_SECRET_KEY.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
+
+
 def generate_simple_token(user: UserResponse) -> str:
-    """Genera un token firmado/serializado para la sesión."""
+    """Token de sesión firmado con HMAC-SHA256 (JWT_SECRET_KEY): nadie puede armarse uno con otro rol."""
     payload = {
         "sub": user.id,
         "email": user.email,
         "role": user.role,
         "name": user.full_name,
-        "exp": int(time.time()) + 86400,
+        "exp": int(time.time()) + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
-    return f"crm_{encoded}"
+    return f"crm_{encoded}.{_sign(encoded)}"
+
+
+def _invalid() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido o expirado")
 
 
 def decode_simple_token(token: str) -> dict:
+    """Valida firma y vencimiento. Los tokens viejos sin firma ya no se aceptan."""
     if token.startswith("Bearer "):
         token = token[7:]
     if token.startswith("crm_"):
         token = token[4:]
+    encoded, _, signature = token.partition(".")
+    if not encoded or not signature or not hmac.compare_digest(signature, _sign(encoded)):
+        raise _invalid()
     try:
-        decoded = base64.urlsafe_b64decode(token.encode("utf-8")).decode("utf-8")
-        return json.loads(decoded)
+        data = json.loads(base64.urlsafe_b64decode(encoded.encode("utf-8")).decode("utf-8"))
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado",
-        )
+        raise _invalid()
+    if not isinstance(data, dict) or int(data.get("exp") or 0) < time.time():
+        raise _invalid()
+    return data
 
 
 @router.post(

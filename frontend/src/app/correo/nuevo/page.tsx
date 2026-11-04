@@ -7,7 +7,7 @@ type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 const one = (value: string | string[] | undefined) => (typeof value === 'string' && value ? value : undefined);
 
-/** Redactar un correo: /correo/nuevo?opportunity_id=&contact_id=&company_id=&para=&volver= */
+/** Redactar un correo: /correo/nuevo?opportunity_id=&contact_id=&company_id=&para=&volver=&sugerir=1&responder=<id> */
 export default async function NuevoCorreoPage({ searchParams }: { searchParams: SearchParams }) {
   const q = await searchParams;
   return (
@@ -17,6 +17,8 @@ export default async function NuevoCorreoPage({ searchParams }: { searchParams: 
       companyId={one(q.company_id)}
       to={one(q.para)}
       back={one(q.volver)}
+      suggest={one(q.sugerir) === '1'}
+      replyTo={one(q.responder)}
     />
   );
 }

@@ -99,6 +99,32 @@ class ActivityService:
         return acts
 
     @classmethod
+    def list_by_company(cls, company_id: UUID) -> list[ActivityResponse]:
+        """Actividades registradas con la empresa (con o sin presupuesto), del más nuevo al más viejo."""
+        try:
+            client = get_supabase_client()
+            res = (
+                client.table("crm_activities")
+                .select("*")
+                .eq("company_id", str(company_id))
+                .order("activity_date", desc=True)
+                .limit(500)
+                .execute()
+            )
+            if res.data:
+                users = UserService.name_map()
+                out = []
+                for item in res.data:
+                    item["user_name"] = users.get(str(item.get("user_id")))
+                    out.append(ActivityResponse(**_with_attachments(item)))
+                return out
+        except Exception as e:
+            logger.warning(f"Error consultando crm_activities por empresa en Supabase: {e}")
+        acts = [ActivityResponse(**a) for a in _mock_activities.values() if str(a.get("company_id")) == str(company_id)]
+        acts.sort(key=lambda a: (_aware(a.activity_date), _aware(a.created_at)), reverse=True)
+        return acts
+
+    @classmethod
     def create_activity(cls, data: ActivityCreate, user_id: UUID | None = None) -> ActivityResponse:
         """Registra un hecho comercial inmutable."""
         actual_user_id = user_id or UUID("00000000-0000-0000-0000-000000000001")

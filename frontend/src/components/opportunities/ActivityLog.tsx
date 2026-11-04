@@ -115,6 +115,27 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
     return list.sort((x, y) => y.at.getTime() - x.at.getTime() || y.order - x.order);
   }, [activities, events]);
 
+  // Una cita de «Ponete al día» llega con ?ver=actividad-<id> (o etapa-, version-): se muestra y se resalta.
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useEffect(() => {
+    const ver = new URLSearchParams(window.location.search).get('ver');
+    if (!ver) return;
+    const [kind, ...rest] = ver.split('-');
+    const id = rest.join('-');
+    const key = kind === 'actividad' ? `a-${id}` : kind === 'etapa' || kind === 'version' ? `h-${kind}-${id}` : null;
+    const index = key ? entries.findIndex((e) => e.key === key) : -1;
+    if (index < 0) return;
+    const timer = window.setTimeout(() => {
+      setShown((n) => Math.max(n, index + 1));
+      setHighlight(key);
+      window.requestAnimationFrame(() => {
+        document.getElementById('seguimiento')?.scrollIntoView({ block: 'start' });
+        listRef.current?.querySelector(`[data-entry="${key}"]`)?.scrollIntoView({ block: 'center' });
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [entries]);
+
   const total = entries.length;
   const visible = entries.slice(0, shown);
   const done = shown >= total;
@@ -327,7 +348,11 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
                   const label = dayLabel(entry.at);
                   const header = i === 0 || dayLabel(visible[i - 1].at) !== label;
                   return (
-                    <li key={entry.key}>
+                    <li
+                      key={entry.key}
+                      data-entry={entry.key}
+                      className={clsx(highlight === entry.key && '-mx-2 rounded-xl bg-amarillo/25 px-2 py-1.5 ring-2 ring-amarillo')}
+                    >
                       {header && (
                         <p className="sticky top-0 z-[1] -mx-5 mb-2 bg-chapa/95 px-5 pb-1 pt-3 text-[13px] font-bold text-tiza backdrop-blur-[2px]">{label}</p>
                       )}

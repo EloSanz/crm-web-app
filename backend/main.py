@@ -4,10 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.controllers import (
     activity_controller,
+    ai_controller,
     auth_controller,
     company_controller,
     contact_controller,
     dev_controller,
+    gmail_controller,
     health_controller,
     message_controller,
     metrics_controller,
@@ -60,7 +62,18 @@ async def require_api_key_and_auth(request, call_next):
 
     # 2. Rutas de salud y documentación del sistema
     # El webhook de WhatsApp lo llama Meta (sin API Key ni sesión); se valida con su firma.
-    public_paths = ["/health", "/api/health", "/docs", "/openapi.json", "/redoc", "/api/whatsapp/webhook"]
+    # El callback de Google lo abre el navegador al volver del consentimiento (se valida con el «state» firmado)
+    # y el cron de Vercel sincroniza respuestas de Gmail (se valida con CRON_SECRET).
+    public_paths = [
+        "/health",
+        "/api/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/whatsapp/webhook",
+        "/api/gmail/callback",
+        "/api/gmail/cron",
+    ]
     if path in public_paths:
         return await call_next(request)
 
@@ -121,6 +134,8 @@ app.include_router(user_controller.router)
 app.include_router(activity_controller.router)
 app.include_router(metrics_controller.router)
 app.include_router(message_controller.router)
+app.include_router(ai_controller.router)
+app.include_router(gmail_controller.router)
 app.include_router(dev_controller.router)
 
 

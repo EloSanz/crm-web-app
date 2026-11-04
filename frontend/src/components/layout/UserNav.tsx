@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { LogOut, Mail } from 'lucide-react';
 import { isAdmin, isManager } from '@/lib/roles';
 import { useCurrentUser, clearStoredAuth } from '@/lib/useUser';
 import { ROLE_LABELS } from '@/lib/catalogs';
@@ -45,6 +45,14 @@ export function UserNav() {
         <p className="text-[15px] font-semibold text-white truncate">{currentUser.full_name}</p>
         <p className="text-sm text-niebla truncate">{ROLE_LABELS[currentUser.role] ?? currentUser.role}</p>
       </div>
+      <Link
+        href="/cuenta/correo"
+        className="h-10 w-10 inline-flex items-center justify-center rounded-lg text-niebla hover:text-white hover:bg-pavonado-2"
+        aria-label="Mi correo"
+        title="Mi correo"
+      >
+        <Mail className="w-5 h-5" />
+      </Link>
       <button
         type="button"
         onClick={logout}
@@ -120,6 +128,10 @@ export function UserMenuCompact() {
               Usuarios
             </Link>
           )}
+          <Link role="menuitem" href="/cuenta/correo" onClick={() => setOpen(false)} className="flex h-11 items-center gap-2.5 rounded-lg px-3 text-[15px] font-semibold hover:bg-chapa-2">
+            <Mail className="w-5 h-5 text-tiza" />
+            Mi correo
+          </Link>
           <button
             role="menuitem"
             type="button"

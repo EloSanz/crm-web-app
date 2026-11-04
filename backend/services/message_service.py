@@ -11,6 +11,11 @@ logger = logging.getLogger("crm.services.message")
 
 # Respaldo en memoria: desarrollo local, tests y bases sin la migración 07 (tabla crm_messages).
 _mock_messages: dict[str, dict] = {}
+# Hilo de Gmail de mensajes guardados en una base sin las columnas de la migración 08.
+_mock_threads: dict[str, dict] = {}
+
+# Columnas de la migración 08: si la base todavía no las tiene, se guarda sin ellas.
+OPTIONAL_COLUMNS = ("thread_id", "from_address", "rfc_message_id")
 
 # Un estado de entrega nunca retrocede (un "entregado" tardío no pisa un "leído").
 _STATUS_RANK = {
@@ -62,6 +67,9 @@ class MessageService:
         provider_message_id: str | None = None,
         error: str | None = None,
         created_at: datetime | None = None,
+        thread_id: str | None = None,
+        from_address: str | None = None,
+        rfc_message_id: str | None = None,
     ) -> MessageResponse:
         record = {
             "id": str(uuid4()),
@@ -84,11 +92,23 @@ class MessageService:
             "error": error,
             "created_at": (created_at or datetime.now(timezone.utc)).isoformat(),
         }
+        for key, value in (("thread_id", thread_id), ("from_address", from_address), ("rfc_message_id", rfc_message_id)):
+            if value:
+                record[key] = value[:998]
         users = UserService.name_map()
 
         try:
             client = get_supabase_client()
-            res = client.table("crm_messages").insert(record).execute()
+            try:
+                res = client.table("crm_messages").insert(record).execute()
+            except Exception as col_err:
+                if not any(c in str(col_err) for c in OPTIONAL_COLUMNS):
+                    raise
+                res = client.table("crm_messages").insert({k: v for k, v in record.items() if k not in OPTIONAL_COLUMNS}).execute()
+                if res.data:
+                    # Sin la migración el hilo no queda en la base: se recuerda en memoria para sincronizar respuestas.
+                    _mock_threads[str(res.data[0]["id"])] = {k: record[k] for k in OPTIONAL_COLUMNS if k in record}
+                    return cls._to_response({**res.data[0], **_mock_threads[str(res.data[0]["id"])]}, users)
             if res.data:
                 return cls._to_response(res.data[0], users)
         except Exception as e:
@@ -106,7 +126,13 @@ class MessageService:
         phone: str | None,
         direction: MessageDirection | None,
         user_id: UUID | None,
+        company_id: UUID | None = None,
+        thread_id: str | None = None,
     ) -> bool:
+        if company_id and str(row.get("company_id")) != str(company_id):
+            return False
+        if thread_id and row.get("thread_id") != thread_id:
+            return False
         if opportunity_id and str(row.get("opportunity_id")) != str(opportunity_id):
             return False
         if contact_id and str(row.get("contact_id")) != str(contact_id):
@@ -131,6 +157,9 @@ class MessageService:
         phone: str | None = None,
         direction: MessageDirection | None = None,
         user_id: UUID | None = None,
+        company_id: UUID | None = None,
+        thread_id: str | None = None,
+        provider: str | None = None,
         limit: int = 200,
     ) -> list[MessageResponse]:
         """Mensajes filtrados, del más nuevo al más viejo."""
@@ -151,6 +180,12 @@ class MessageService:
                 query = query.eq("direction", direction.value)
             if user_id:
                 query = query.eq("user_id", str(user_id))
+            if company_id:
+                query = query.eq("company_id", str(company_id))
+            if thread_id:
+                query = query.eq("thread_id", thread_id)
+            if provider:
+                query = query.eq("provider", provider)
             res = query.order("created_at", desc=True).limit(limit).execute()
             rows = list(res.data or [])
         except Exception as e:
@@ -158,14 +193,30 @@ class MessageService:
 
         # Se suman los que sólo quedaron en memoria (base sin la migración o inserción fallida).
         seen = {str(r.get("id")) for r in rows}
+        rows = [{**r, **_mock_threads.get(str(r.get("id")), {})} for r in rows]
         rows += [
             r
             for r in _mock_messages.values()
-            if r["id"] not in seen and cls._matches(r, opportunity_id, contact_id, channel, phone, direction, user_id)
+            if r["id"] not in seen
+            and cls._matches(r, opportunity_id, contact_id, channel, phone, direction, user_id, company_id, thread_id)
+            and (not provider or r.get("provider") == provider)
         ]
         out = [cls._to_response(r, users) for r in rows]
         out.sort(key=lambda m: m.created_at, reverse=True)
         return out[:limit]
+
+    @classmethod
+    def get(cls, message_id: UUID | str) -> MessageResponse | None:
+        try:
+            client = get_supabase_client()
+            res = client.table("crm_messages").select("*").eq("id", str(message_id)).execute()
+            if res.data:
+                row = res.data[0]
+                return cls._to_response({**row, **_mock_threads.get(str(row["id"]), {})}, UserService.name_map())
+        except Exception as e:
+            logger.warning(f"Error buscando un mensaje en Supabase: {e}")
+        row = _mock_messages.get(str(message_id))
+        return cls._to_response(row, UserService.name_map()) if row else None
 
     @classmethod
     def find_by_provider_id(cls, provider_message_id: str) -> MessageResponse | None:

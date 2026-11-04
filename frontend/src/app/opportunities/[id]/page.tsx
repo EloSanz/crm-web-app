@@ -4,7 +4,7 @@ import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import clsx from 'clsx';
-import { Check, Pencil, Trophy, XCircle } from 'lucide-react';
+import { Check, MessageCircle, Pencil, Sparkles, Trophy, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -13,6 +13,7 @@ import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { Punta, HealthChip } from '@/components/punta/Punta';
 import { ActivityLog } from '@/components/opportunities/ActivityLog';
 import { VersionHistory } from '@/components/opportunities/VersionHistory';
+import { EmailThreads } from '@/components/opportunities/EmailThreads';
 import { ContactMenu } from '@/components/contact/ContactMenu';
 import { useStageTransitions } from '@/components/opportunities/useStageTransitions';
 import {
@@ -198,6 +199,10 @@ export default function OpportunityDetailPage() {
           </nav>
         )}
 
+        {isOpen && (opp.days_since_last_activity ?? 0) >= COLD_DAYS && (
+          <ReviveCard oppId={opp.id} days={opp.days_since_last_activity ?? 0} contactId={contact?.id ?? null} hasEmail={Boolean(contact?.email || company?.email)} hasPhone={Boolean(phone)} />
+        )}
+
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-6">
             <section aria-label="Resumen" className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
@@ -312,6 +317,8 @@ export default function OpportunityDetailPage() {
               )}
             </section>
 
+            <EmailThreads opportunityId={opp.id} onNewReplies={reload} />
+
             {versions.length > 1 && <VersionHistory versions={versions} />}
           </div>
 
@@ -329,5 +336,37 @@ function Datum({ label, children }: { label: string; children: React.ReactNode }
       <dt className="text-[13px] font-semibold text-tiza">{label}</dt>
       <dd className="mt-0.5 text-[15px] font-medium break-words">{children}</dd>
     </div>
+  );
+}
+
+/** Mismo umbral que el backend (draft_service.COLD_DAYS): semáforo amarillo o rojo. */
+const COLD_DAYS = 8;
+
+/** El presupuesto se enfría: el vendedor encuentra un borrador listo para retomar el contacto. */
+function ReviveCard({ oppId, days, contactId, hasEmail, hasPhone }: { oppId: string; days: number; contactId: string | null; hasEmail: boolean; hasPhone: boolean }) {
+  if (!hasEmail && !(hasPhone && contactId)) return null;
+  const back = encodeURIComponent(`/opportunities/${oppId}`);
+  return (
+    <section aria-label="Retomar el contacto" className="flex flex-col gap-3 rounded-2xl border border-ambar/30 bg-ambar-velo px-5 py-4 text-ambar-tinta sm:flex-row sm:items-center">
+      <Sparkles className="hidden w-5 h-5 shrink-0 sm:block" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-bold leading-snug">Hace {days} días que no hay contacto con el cliente</p>
+        <p className="text-sm leading-snug">El asistente arma un borrador con el presupuesto y el seguimiento. Lo revisás y lo mandás vos.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {hasEmail && (
+          <ButtonLink href={`/correo/nuevo?opportunity_id=${oppId}&sugerir=1&volver=${back}`} variant="secundario" size="sm">
+            <Sparkles className="w-4 h-4" aria-hidden />
+            Borrador de correo
+          </ButtonLink>
+        )}
+        {hasPhone && contactId && (
+          <ButtonLink href={`/whatsapp/${contactId}?opportunity_id=${oppId}&volver=${back}`} variant="secundario" size="sm">
+            <MessageCircle className="w-4 h-4" aria-hidden />
+            Ir al WhatsApp
+          </ButtonLink>
+        )}
+      </div>
+    </section>
   );
 }

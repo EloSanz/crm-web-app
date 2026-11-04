@@ -54,3 +54,6 @@ Thumbs.db
 *.swo
 .vercel
 .env*
+
+# Planillas generadas por scripts/evaluar_asistente.py
+evaluacion/

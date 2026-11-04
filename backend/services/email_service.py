@@ -429,20 +429,31 @@ def _send_resend(
     return EmailResult(status="enviado", provider="resend", provider_message_id=data.get("id"), warnings=warnings)
 
 
-def _send_smtp(
-    to: list[str], cc: list[str], subject: str, html: str, text: str, attachments: list[ActivityAttachment]
-) -> EmailResult:
-    if not settings.SMTP_HOST:
-        raise EmailSendError("Falta configurar SMTP_HOST para enviar correos.", "smtp")
-    sender = settings.EMAIL_FROM or settings.SMTP_USER
+def build_mime(
+    *,
+    sender: str,
+    to: list[str],
+    cc: list[str],
+    subject: str,
+    html: str,
+    text: str,
+    attachments: list[ActivityAttachment],
+    reply_to: str | None = None,
+    in_reply_to: str | None = None,
+) -> tuple[EmailMessage, str, list[str]]:
+    """Arma el correo MIME (texto + HTML + adjuntos). Lo usan SMTP y Gmail."""
     msg = EmailMessage()
     msg["From"] = sender
     msg["To"] = ", ".join(to)
     if cc:
         msg["Cc"] = ", ".join(cc)
     msg["Subject"] = subject
-    if settings.EMAIL_REPLY_TO:
-        msg["Reply-To"] = settings.EMAIL_REPLY_TO
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    if in_reply_to:
+        # Así el cliente lo ve dentro de la misma conversación.
+        msg["In-Reply-To"] = in_reply_to
+        msg["References"] = in_reply_to
     msg["Date"] = formatdate(localtime=True)
     domain = parseaddr(sender)[1].rpartition("@")[2] or None
     message_id = make_msgid(domain=domain)
@@ -459,6 +470,24 @@ def _send_smtp(
         ctype = a.content_type or mimetypes.guess_type(a.name)[0] or "application/octet-stream"
         maintype, _, subtype = ctype.partition("/")
         msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=a.name)
+    return msg, message_id, warnings
+
+
+def _send_smtp(
+    to: list[str], cc: list[str], subject: str, html: str, text: str, attachments: list[ActivityAttachment]
+) -> EmailResult:
+    if not settings.SMTP_HOST:
+        raise EmailSendError("Falta configurar SMTP_HOST para enviar correos.", "smtp")
+    msg, message_id, warnings = build_mime(
+        sender=settings.EMAIL_FROM or settings.SMTP_USER,
+        to=to,
+        cc=cc,
+        subject=subject,
+        html=html,
+        text=text,
+        attachments=attachments,
+        reply_to=settings.EMAIL_REPLY_TO or None,
+    )
 
     context = ssl.create_default_context()
     server: smtplib.SMTP | None = None

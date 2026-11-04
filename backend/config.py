@@ -60,5 +60,29 @@ class Settings(BaseSettings):
     WHATSAPP_TEMPLATE_LANG: str = "es_AR"
     WHATSAPP_DEFAULT_COUNTRY_CODE: str = "54"
 
+    # Asistente con IA (borradores de respuesta y «Ponete al día»). Sin ANTHROPIC_API_KEY
+    # funciona en modo simulado: arma respuestas con plantillas y no gasta nada.
+    ANTHROPIC_API_KEY: str = ""
+    AI_MODEL: str = "claude-opus-5-5"
+    # low | medium | high: cuánto razona el modelo (más alto = mejor y más caro).
+    AI_EFFORT: str = "low"
+    # Tope de gasto mensual en dólares para todo el CRM. Al llegar, el asistente se apaga hasta el mes siguiente.
+    AI_MONTHLY_BUDGET_USD: float = 10.0
+    # Precio por millón de tokens del modelo configurado (para calcular el gasto).
+    AI_PRICE_INPUT_PER_MTOK: float = 4.0
+    AI_PRICE_OUTPUT_PER_MTOK: float = 20.0
+    # Consultas por usuario por día (evita que un bucle o un abuso queme el tope en minutos).
+    AI_DAILY_REQUESTS_PER_USER: int = 60
+
+    # Gmail del vendedor (OAuth de Google). Sin GOOGLE_CLIENT_ID el correo sale por EMAIL_PROVIDER.
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    # URL pública del callback: https://<tu-dominio>/api/gmail/callback (cargada igual en Google Cloud).
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/gmail/callback"
+    # Clave para cifrar los tokens de Google en la base. Si falta, se deriva de JWT_SECRET_KEY.
+    TOKEN_ENCRYPTION_KEY: str = ""
+    # Vercel Cron manda este secreto en Authorization para sincronizar respuestas de Gmail.
+    CRON_SECRET: str = ""
+
 
 settings = Settings()
