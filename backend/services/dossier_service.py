@@ -46,7 +46,10 @@ KIND_LABEL = {
     "version": "Nueva versión de materiales",
     "actividad": "Actividad",
     "mensaje": "Mensaje del cliente",
+    "ficha": "Ficha del cliente",
 }
+# Referencia fija de la ficha (datos del cliente y contactos): también se puede citar.
+PROFILE_REF = "F0"
 
 
 def _aware(dt: datetime) -> datetime:
@@ -110,10 +113,14 @@ class Dossier:
     opportunities: list[OpportunityResponse]
     entries: list[Entry] = field(default_factory=list)
     truncated: bool = False
+    profile: Entry | None = None
 
     @property
     def by_ref(self) -> dict[str, Entry]:
-        return {e.ref: e for e in self.entries}
+        refs = {e.ref: e for e in self.entries}
+        if self.profile:
+            refs[self.profile.ref] = self.profile
+        return refs
 
     @property
     def company_id(self) -> UUID | None:
@@ -248,6 +255,19 @@ def _finish(dossier: Dossier, entries: list[Entry]) -> Dossier:
         if e.opportunity_id and not e.opportunity_title:
             e.opportunity_title = titles.get(e.opportunity_id)
     dossier.entries = unique
+    if dossier.company:
+        dossier.profile = Entry(
+            kind="ficha",
+            at=_aware(dossier.company.created_at),
+            title=f"Ficha de {dossier.company.name}",
+            detail=" · ".join(
+                f"{ct.first_name} {ct.last_name}".strip() + (f" ({ct.job_title})" if ct.job_title else "")
+                for ct in dossier.contacts
+            )
+            or None,
+            source_id=str(dossier.company.id),
+            ref=PROFILE_REF,
+        )
     return dossier
 
 
@@ -298,6 +318,7 @@ def render(dossier: Dossier) -> str:
     lines: list[str] = []
     c = dossier.company
     if c:
+        lines.append(f"[{PROFILE_REF}] Ficha del cliente (datos y contactos cargados en el CRM)")
         lines.append(f"Cliente: {c.name}")
         extra = [
             f"Estado comercial: {c.status.value}",

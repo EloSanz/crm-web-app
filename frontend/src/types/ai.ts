@@ -37,7 +37,7 @@ export interface DraftPayload {
 /** Fuente citada por «Ponete al día»: una actividad, etapa, versión o mensaje del seguimiento. */
 export interface Citation {
   ref: string;
-  kind: 'presupuesto' | 'etapa' | 'version' | 'actividad' | 'mensaje';
+  kind: 'presupuesto' | 'etapa' | 'version' | 'actividad' | 'mensaje' | 'ficha';
   kind_label: string;
   at: string;
   title: string;

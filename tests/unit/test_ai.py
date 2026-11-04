@@ -218,6 +218,22 @@ def test_catchup_drops_invented_citations_and_flags_unsourced(monkeypatch, clien
     assert body["unsourced"] is True
 
 
+def test_catchup_can_cite_the_client_profile(monkeypatch, client: TestClient):
+    company, _, _ = _setup(client, "ficha")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        ai_service.httpx,
+        "post",
+        lambda *a, **k: _model_reply(
+            {"respuesta": "El contacto es Marta Gómez [F0].", "fuentes": ["F0"], "no_lo_se": False}
+        ),
+    )
+    body = client.post(f"/api/ai/catchup/{company['id']}/ask", json={"question": "¿Quién es el contacto?"}).json()
+    assert body["unsourced"] is False
+    assert body["citations"][0]["kind"] == "ficha"
+    assert body["citations"][0]["link"] == f"/companies/{company['id']}"
+
+
 # ---------------------------------------------------------------------------
 # Modelo simulado: forma de la llamada, costo y tope de gasto
 # ---------------------------------------------------------------------------
