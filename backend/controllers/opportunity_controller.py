@@ -3,7 +3,13 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
-from backend.controllers.permissions import MANAGER_ROLES, ensure_owner, owner_scope, require_roles
+from backend.controllers.permissions import (
+    MANAGER_ROLES,
+    ensure_owner,
+    owner_scope,
+    require_roles,
+    session_from_header,
+)
 from backend.database import get_supabase_client
 from backend.models.opportunity import (
     OpportunityCreate,
@@ -17,6 +23,17 @@ from backend.services.opportunity_service import OpportunityService
 
 router = APIRouter(prefix="/api/opportunities", tags=["Oportunidades / Presupuestos"])
 stages_router = APIRouter(prefix="/api/stages", tags=["Etapas del Embudo"])
+
+
+def _ensure_can_touch_closed(authorization: str | None, opp: OpportunityResponse) -> None:
+    """Regla 14: un presupuesto ganado o perdido sólo lo modifican o reabren admin y responsable comercial."""
+    if opp.status == OpportunityStatus.ABIERTA:
+        return
+    if session_from_header(authorization).get("role") not in MANAGER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El presupuesto está cerrado: sólo el administrador o el responsable comercial lo pueden modificar o reabrir.",
+        )
 
 
 def _extract_user_id(authorization: str | None) -> UUID | None:
@@ -40,12 +57,16 @@ def list_opportunities(
     contact_id: UUID | None = Query(None, description="Filtrar por contacto"),
     stage_id: UUID | None = Query(None, description="Filtrar por etapa"),
     status: OpportunityStatus | None = Query(None, description="Filtrar por estado"),
+    assigned_to: UUID | None = Query(None, description="Filtrar por responsable (sólo admin y responsable comercial)"),
+    origin: str | None = Query(None, max_length=100, description="Filtrar por origen del presupuesto"),
     q: str | None = Query(None, description="Búsqueda por título"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     authorization: str | None = Header(None),
 ) -> list[OpportunityResponse]:
     """Retorna los presupuestos activos ordenados cronológicamente. Cada vendedor ve sólo los suyos."""
+    # El vendedor queda siempre limitado a lo suyo: su filtro por responsable se ignora.
+    scope = owner_scope(authorization)
     return OpportunityService.get_opportunities(
         company_id=company_id,
         contact_id=contact_id,
@@ -54,7 +75,8 @@ def list_opportunities(
         q=q,
         limit=limit,
         offset=offset,
-        assigned_to=owner_scope(authorization),
+        assigned_to=scope or assigned_to,
+        origin=origin.strip() if origin and origin.strip() else None,
     )
 
 
@@ -125,6 +147,7 @@ def update_opportunity(
     user_id = _extract_user_id(authorization)
     current = OpportunityService.get_opportunity_by_id(opp_id)
     ensure_owner(authorization, current.assigned_to)
+    _ensure_can_touch_closed(authorization, current)
     if data.assigned_to is not None and str(current.assigned_to) != str(data.assigned_to):
         require_roles(authorization, MANAGER_ROLES)
     return OpportunityService.update_opportunity(opp_id, data, user_id=user_id)
@@ -137,7 +160,9 @@ def update_opportunity(
 )
 def delete_opportunity(opp_id: UUID, authorization: str | None = Header(None)):
     """Aplica baja lógica (Invariante 2)."""
-    ensure_owner(authorization, OpportunityService.get_opportunity_by_id(opp_id).assigned_to)
+    current = OpportunityService.get_opportunity_by_id(opp_id)
+    ensure_owner(authorization, current.assigned_to)
+    _ensure_can_touch_closed(authorization, current)
     success = OpportunityService.delete_opportunity(opp_id)
     if not success:
         raise HTTPException(

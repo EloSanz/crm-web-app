@@ -19,7 +19,7 @@ import { createOpportunity, fetchCompanies, fetchContacts, fetchProducts, fetchP
 import { isManager } from '@/lib/roles';
 import { useLoad } from '@/lib/useLoad';
 import { useCurrentUser } from '@/lib/useUser';
-import { CLIENT_STATUS } from '@/lib/catalogs';
+import { CLIENT_STATUS, ORIGIN_OPTIONS } from '@/lib/catalogs';
 import { formatARS, formatQty, sentenceCase } from '@/lib/format';
 
 const load = async () => {
@@ -59,6 +59,8 @@ interface Draft {
   closeDate: string;
   items: OpportunityItemCreateData[];
   discountPct?: number;
+  /** Origen elegido a mano; null mientras siga el del cliente. */
+  origin?: string | null;
 }
 
 function readDraft(): Draft | null {
@@ -135,6 +137,8 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const [closeDate, setCloseDate] = useState(preset.closeDate);
   const [items, setItems] = useState<OpportunityItemCreateData[]>(preset.items);
   const [discountPct, setDiscountPct] = useState(preset.discountPct ?? 0);
+  // null = sigue el origen del cliente elegido; al tocarlo queda el que eligió el vendedor.
+  const [originOverride, setOriginOverride] = useState<string | null>(preset.origin ?? null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ client?: string; title?: string }>({});
 
@@ -142,6 +146,9 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const company = data.companies.find((c) => c.id === companyId) ?? null;
   const contact = data.contacts.find((c) => c.id === contactId) ?? null;
   const clientName = clientType === 'company' ? company?.name : contact ? `${contact.first_name} ${contact.last_name}` : undefined;
+  const clientOrigin = (clientType === 'company' ? company?.origin : contact?.origin) ?? '';
+  const origin = originOverride ?? clientOrigin;
+  const originChoices = origin && !ORIGIN_OPTIONS.includes(origin) ? [...ORIGIN_OPTIONS, origin] : ORIGIN_OPTIONS;
   const totals = quoteTotals(items, discountPct);
   const autoTitle = project ? `Materiales · ${project.name}` : '';
   const effectiveStage = stageId || data.stages[0]?.id || '';
@@ -162,7 +169,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
 
   /** Guarda lo cargado y va al alta de obra o contacto; al terminar vuelve acá con lo nuevo elegido. */
   const goCreate = (kind: 'obra' | 'contacto') => {
-    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items, discountPct };
+    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items, discountPct, origin: originOverride };
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
@@ -196,6 +203,8 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
         expected_close_date: closeDate || undefined,
         delivery_location: delivery.trim() || undefined,
         discount_pct: discountPct,
+        // "" = sin origen a propósito (si no se manda, el backend toma el del cliente).
+        origin,
         items,
       });
       try {
@@ -354,6 +363,18 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
                   </Field>
                   <Field label="Cierre estimado">
                     {({ id }) => <DatePicker id={id} value={closeDate} onChange={setCloseDate} min={toISODate(new Date())} placeholder="Sin fecha" />}
+                  </Field>
+                  <Field label="Origen" hint={originOverride === null && clientOrigin ? 'El del cliente; podés cambiarlo.' : undefined}>
+                    {({ id, describedBy }) => (
+                      <Select
+                        id={id}
+                        aria-describedby={describedBy}
+                        value={origin}
+                        onChange={setOriginOverride}
+                        placeholder="Sin origen"
+                        options={[{ value: '', label: 'Sin origen' }, ...originChoices.map((o) => ({ value: o, label: o }))]}
+                      />
+                    )}
                   </Field>
                 </div>
               </Block>
