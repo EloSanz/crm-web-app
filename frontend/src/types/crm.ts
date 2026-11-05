@@ -146,6 +146,10 @@ export interface Opportunity {
   discount_pct?: number;
   /** Versión vigente de los materiales (sube con cada renegociación). */
   current_version?: number;
+  /** Fecha real de cierre (ganado o perdido); vuelve a null al reabrir. */
+  closed_at?: string | null;
+  /** Origen propio del presupuesto (se precarga con el del cliente). */
+  origin?: string | null;
   items: OpportunityItem[];
   // North Star Metric (NSM)
   last_activity_at?: string | null;
@@ -314,6 +318,7 @@ export interface OpportunityCreateData {
   expected_close_date?: string | null;
   delivery_location?: string | null;
   discount_pct?: number;
+  origin?: string | null;
   items: OpportunityItemCreateData[];
 }
 
@@ -333,6 +338,9 @@ export interface OpportunityUpdateData {
   items?: OpportunityItemCreateData[];
   /** Motivo del cambio de materiales; queda guardado en la versión. */
   version_note?: string | null;
+  origin?: string | null;
+  /** Obligatorio para reabrir un presupuesto cerrado; queda en el historial. */
+  reopen_reason?: string | null;
 }
 
 

@@ -22,6 +22,7 @@ import { healthOf, HEALTH_META, type Health } from '@/lib/health';
 import { formatARSCompact, sentenceCase } from '@/lib/format';
 import { useCurrentUser } from '@/lib/useUser';
 import { isManager } from '@/lib/roles';
+import { ORIGIN_OPTIONS } from '@/lib/catalogs';
 
 const load = async () => {
   const [opportunities, stages] = await Promise.all([fetchOpportunities(), fetchStages()]);
@@ -29,6 +30,18 @@ const load = async () => {
 };
 
 type HealthFilter = 'all' | Health;
+type StatusFilter = Opportunity['status'] | 'todos';
+
+const ALL = 'all';
+const NO_ORIGIN = '__sin_origen__';
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'abierta', label: 'Abiertos' },
+  { value: 'ganada', label: 'Ganados' },
+  { value: 'perdida', label: 'Perdidos' },
+  { value: 'todos', label: 'Todos los estados' },
+];
+
+const stageStatus = (st: Stage): Opportunity['status'] => (st.is_closed_won ? 'ganada' : st.is_closed_lost ? 'perdida' : 'abierta');
 
 const EMPTY_OPPS: Opportunity[] = [];
 const EMPTY_STAGES: Stage[] = [];
@@ -55,9 +68,62 @@ export default function OpportunitiesPage() {
   );
   const [view, setView] = useState<'tablero' | 'lista'>('tablero');
   const [search, setSearch] = useState('');
-  const [stage, setStage] = useState('all');
+  const [stage, setStage] = useState(ALL);
   const [health, setHealth] = useState<HealthFilter>('all');
+  const [status, setStatus] = useState<StatusFilter>('abierta');
+  const [owner, setOwner] = useState(ALL);
+  const [origin, setOrigin] = useState(ALL);
   const manager = isManager(useCurrentUser());
+
+  // Responsable y origen recortan todo, también los totales de arriba.
+  const scoped = useMemo(
+    () =>
+      (data?.opportunities ?? []).filter(
+        (o) => (owner === ALL || o.assigned_to === owner) && (origin === ALL || (origin === NO_ORIGIN ? !o.origin : o.origin === origin))
+      ),
+    [data, owner, origin]
+  );
+
+  const ownerOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const o of data?.opportunities ?? []) names.set(o.assigned_to, o.assigned_to_name || 'Sin nombre');
+    return [...names].sort((a, b) => a[1].localeCompare(b[1], 'es')).map(([value, label]) => ({ value, label }));
+  }, [data]);
+
+  const originChoices = useMemo(() => {
+    const extra = (data?.opportunities ?? []).map((o) => o.origin).filter((o): o is string => Boolean(o) && !ORIGIN_OPTIONS.includes(o as string));
+    return [...ORIGIN_OPTIONS, ...[...new Set(extra)].sort()];
+  }, [data]);
+
+  /** Elegir un estado deja la etapa y el semáforo coherentes; los cerrados se ven mejor en la lista. */
+  const pickStatus = (next: StatusFilter) => {
+    setStatus(next);
+    if (next !== 'abierta') setHealth('all');
+    const st = data?.stages.find((x) => x.id === stage);
+    if (st && next !== 'todos' && stageStatus(st) !== next) setStage(ALL);
+    if (next === 'ganada' || next === 'perdida') setView('lista');
+  };
+
+  const pickStage = (next: string) => {
+    setStage(next);
+    const st = data?.stages.find((x) => x.id === next);
+    if (!st) return;
+    const kind = stageStatus(st);
+    setStatus(kind);
+    if (kind !== 'abierta') {
+      setHealth('all');
+      setView('lista');
+    }
+  };
+
+  const filtersOn = stage !== ALL || status !== 'abierta' || owner !== ALL || origin !== ALL || health !== 'all';
+  const clearFilters = () => {
+    setStage(ALL);
+    setStatus('abierta');
+    setOwner(ALL);
+    setOrigin(ALL);
+    setHealth('all');
+  };
 
   const summary = useMemo(() => {
     const counts: Record<Health, { n: number; amount: number }> = {
@@ -67,27 +133,32 @@ export default function OpportunitiesPage() {
     };
     let open = 0;
     let openTotal = 0;
-    for (const o of data?.opportunities ?? []) {
-      if (o.status !== 'abierta') continue;
+    const closed = { ganada: { n: 0, amount: 0 }, perdida: { n: 0, amount: 0 } };
+    for (const o of scoped) {
+      if (o.status !== 'abierta') {
+        closed[o.status].n += 1;
+        closed[o.status].amount += Number(o.estimated_value || 0);
+        continue;
+      }
       open += 1;
       openTotal += Number(o.estimated_value || 0);
       const h = healthOf(o);
       counts[h].n += 1;
       counts[h].amount += Number(o.estimated_value || 0);
     }
-    return { counts, open, openTotal };
-  }, [data]);
+    return { counts, open, openTotal, closed };
+  }, [scoped]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data?.opportunities ?? []).filter((o) => {
+    return scoped.filter((o) => {
       const s = !q || [o.title, o.company_name, o.contact_name, o.project_name].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
-      // «Abiertos» muestra sólo lo abierto; los cerrados se ven desde Vendidos / Perdidos o eligiendo su etapa.
-      const st = stage === 'all' ? o.status === 'abierta' : o.stage_id === stage;
+      const est = status === 'todos' || o.status === status;
+      const st = stage === ALL || o.stage_id === stage;
       const h = health === 'all' || (o.status === 'abierta' && healthOf(o) === health);
-      return s && st && h;
+      return s && est && st && h;
     });
-  }, [data, search, stage, health]);
+  }, [scoped, search, status, stage, health]);
 
   return (
     <AppLayout>
@@ -110,10 +181,11 @@ export default function OpportunitiesPage() {
             className="flex gap-1 overflow-x-auto rounded-2xl border border-linea bg-chapa p-1.5 [scrollbar-width:none] sm:grid sm:grid-cols-3 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden"
           >
             <HealthButton
-              active={health === 'all' && stage === 'all'}
+              active={status === 'abierta' && health === 'all' && stage === ALL}
               onClick={() => {
                 setHealth('all');
-                setStage('all');
+                setStage(ALL);
+                setStatus('abierta');
               }}
               label={`Abiertos · ${summary.open}`}
               value={manager ? formatARSCompact(summary.openTotal) : undefined}
@@ -122,7 +194,11 @@ export default function OpportunitiesPage() {
               <HealthButton
                 key={h}
                 active={health === h}
-                onClick={() => setHealth(health === h ? 'all' : h)}
+                onClick={() => {
+                  setHealth(health === h ? 'all' : h);
+                  setStatus('abierta');
+                  if (stage !== ALL && data.stages.find((x) => x.id === stage && stageStatus(x) !== 'abierta')) setStage(ALL);
+                }}
                 label={`${HEALTH_META[h].label} · ${summary.counts[h].n}`}
                 value={manager ? formatARSCompact(summary.counts[h].amount) : undefined}
                 color={PUNTA_COLORS[h].base}
@@ -131,22 +207,21 @@ export default function OpportunitiesPage() {
             {data.stages
               .filter((st) => st.is_closed_won || st.is_closed_lost)
               .map((st) => {
-                const items = data.opportunities.filter((o) => o.stage_id === st.id);
                 const won = st.is_closed_won;
+                const total = summary.closed[won ? 'ganada' : 'perdida'];
                 return (
                   <DroppableStage key={st.id} id={st.id} className="min-w-[128px] shrink-0 sm:min-w-0">
                     {({ isOver, isDragging }) => (
                       <HealthButton
-                        active={stage === st.id}
+                        active={status === (won ? 'ganada' : 'perdida') && (stage === ALL || stage === st.id)}
                         dropping={isOver}
                         waiting={isDragging}
                         onClick={() => {
-                          setHealth('all');
-                          setStage(st.id);
-                          setView('lista');
+                          setStage(ALL);
+                          pickStatus(won ? 'ganada' : 'perdida');
                         }}
-                        label={`${won ? 'Vendidos' : 'Perdidos'} · ${items.length}`}
-                        value={manager ? formatARSCompact(items.reduce((a, o) => a + Number(o.estimated_value || 0), 0)) : undefined}
+                        label={`${won ? 'Vendidos' : 'Perdidos'} · ${total.n}`}
+                        value={manager ? formatARSCompact(total.amount) : undefined}
                         icon={won ? <Trophy className="w-3 h-3 text-verde" aria-hidden /> : <XCircle className="w-3 h-3 text-tiza" aria-hidden />}
                       />
                     )}
@@ -166,14 +241,6 @@ export default function OpportunitiesPage() {
             aria-label="Buscar presupuestos"
           />
           <div className="flex gap-2.5">
-            <div className="min-w-0 flex-1 md:w-60 md:flex-none">
-              <Select
-                value={stage}
-                onChange={setStage}
-                aria-label="Etapa"
-                options={[{ value: 'all', label: 'Todas las etapas' }, ...(data?.stages ?? []).map((s) => ({ value: s.id, label: sentenceCase(s.name) }))]}
-              />
-            </div>
             <Segmented
               label="Vista"
               value={view}
@@ -184,6 +251,40 @@ export default function OpportunitiesPage() {
               ]}
             />
           </div>
+        </div>
+
+        <div role="group" aria-label="Filtros" className="grid grid-cols-2 gap-2.5 md:flex md:flex-wrap md:items-center">
+          <div className="min-w-0 md:w-52">
+            <Select
+              size="sm"
+              value={stage}
+              onChange={pickStage}
+              aria-label="Etapa"
+              options={[{ value: ALL, label: 'Todas las etapas' }, ...(data?.stages ?? []).map((s) => ({ value: s.id, label: sentenceCase(s.name) }))]}
+            />
+          </div>
+          <div className="min-w-0 md:w-44">
+            <Select size="sm" value={status} onChange={(v) => pickStatus(v as StatusFilter)} aria-label="Estado" options={STATUS_OPTIONS} />
+          </div>
+          <div className="min-w-0 md:w-56">
+            <Select
+              size="sm"
+              value={origin}
+              onChange={setOrigin}
+              aria-label="Origen"
+              options={[{ value: ALL, label: 'Todos los orígenes' }, ...originChoices.map((o) => ({ value: o, label: o })), { value: NO_ORIGIN, label: 'Sin origen' }]}
+            />
+          </div>
+          {manager && (
+            <div className="min-w-0 md:w-52">
+              <Select size="sm" value={owner} onChange={setOwner} aria-label="Responsable" options={[{ value: ALL, label: 'Todos los responsables' }, ...ownerOptions]} />
+            </div>
+          )}
+          {filtersOn && (
+            <Button variant="fantasma" size="sm" onClick={clearFilters}>
+              Limpiar filtros
+            </Button>
+          )}
         </div>
 
         {loading ? (

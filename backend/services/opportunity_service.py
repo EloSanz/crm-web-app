@@ -25,8 +25,8 @@ _mock_opportunities: dict[str, dict] = {}
 _mock_items: dict[str, list[dict]] = {}
 _mock_versions: dict[str, list[dict]] = {}
 
-# Columnas agregadas en la migración 05: si la base todavía no las tiene, se guarda sin ellas.
-OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version")
+# Columnas agregadas en las migraciones 05 y 10: si la base todavía no las tiene, se guarda sin ellas.
+OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version", "closed_at", "origin")
 OPTIONAL_ITEM_FIELDS = ("list_price", "price_tier", "discount_pct")
 BLOCKED_COMPANY_STATUSES = {"inactivo", "no_contactar"}
 
@@ -39,6 +39,51 @@ def _sentence(name: str | None) -> str:
 def _aware(dt: datetime) -> datetime:
     """Fechas sin zona se toman como UTC (mezclarlas con fechas con zona rompe comparaciones)."""
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _stage_status(stage_id: UUID | str) -> tuple[OpportunityStatus, dict]:
+    """Estado que corresponde a una etapa: abierta, ganada (etapa de ganado) o perdida (etapa de perdido)."""
+    from backend.controllers.opportunity_controller import list_stages
+
+    stage = next((s for s in list_stages() if str(s["id"]) == str(stage_id)), None)
+    if stage is None:
+        raise HTTPException(status_code=422, detail="La etapa elegida no existe.")
+    if stage.get("is_closed_won"):
+        return OpportunityStatus.GANADA, stage
+    if stage.get("is_closed_lost"):
+        return OpportunityStatus.PERDIDA, stage
+    return OpportunityStatus.ABIERTA, stage
+
+
+STATUS_LABEL = {
+    OpportunityStatus.ABIERTA: "abierto",
+    OpportunityStatus.GANADA: "ganado",
+    OpportunityStatus.PERDIDA: "perdido",
+}
+
+# Nombres legibles de los campos para dejar registrado qué se tocó en un presupuesto cerrado.
+FIELD_LABEL = {
+    "title": "nombre",
+    "company_id": "empresa",
+    "contact_id": "contacto",
+    "project_id": "obra",
+    "assigned_to": "responsable",
+    "estimated_value": "valor final",
+    "expected_close_date": "cierre estimado",
+    "delivery_location": "entrega",
+    "loss_reason": "motivo de pérdida",
+    "discount_pct": "descuento",
+    "origin": "origen",
+    "items": "materiales",
+}
+
+
+def _same(before, after) -> bool:
+    """Compara valores de un campo (los montos como número: 150000 == 150000.00)."""
+    try:
+        return Decimal(str(before)) == Decimal(str(after))
+    except Exception:
+        return str(before or "") == str(after or "")
 
 
 def _clean_item(row: dict) -> dict:
@@ -58,6 +103,9 @@ class OpportunityService:
         # Bases sin la migración 05 devuelven estas columnas vacías.
         data["discount_pct"] = data.get("discount_pct") or 0
         data["current_version"] = data.get("current_version") or 1
+        # Bases sin la migración 10: sin fecha de cierre ni origen propio.
+        data.setdefault("closed_at", None)
+        data.setdefault("origin", None)
 
         # Responsable comercial
         if data.get("assigned_to"):
@@ -194,6 +242,7 @@ class OpportunityService:
         limit: int = 100,
         offset: int = 0,
         assigned_to: UUID | None = None,
+        origin: str | None = None,
     ) -> list[OpportunityResponse]:
         """Obtiene presupuestos activos excluyendo baja lógica. `assigned_to` limita a los de un vendedor."""
         try:
@@ -210,6 +259,8 @@ class OpportunityService:
                 query = query.eq("status", status_filter.value)
             if assigned_to:
                 query = query.eq("assigned_to", str(assigned_to))
+            if origin:
+                query = query.eq("origin", origin)
             if q:
                 query = query.ilike("title", f"%{q}%")
 
@@ -245,6 +296,8 @@ class OpportunityService:
             results = [o for o in results if o.status == status_filter]
         if assigned_to:
             results = [o for o in results if str(o.assigned_to) == str(assigned_to)]
+        if origin:
+            results = [o for o in results if (o.origin or "") == origin]
         if q:
             q_lower = q.lower()
             results = [o for o in results if q_lower in o.title.lower()]
@@ -339,7 +392,9 @@ class OpportunityService:
         except Exception as e:
             if not any(field in str(e) for field in optional):
                 raise
-            logger.warning(f"{table}: columnas nuevas ausentes ({e}); se guarda sin ellas. Aplicar migración 05.")
+            logger.warning(
+                f"{table}: columnas nuevas ausentes ({e}); se guarda sin ellas. Aplicar migraciones 05 y 10."
+            )
             if isinstance(rows, list):
                 stripped = [{k: v for k, v in r.items() if k not in optional} for r in rows]
             else:
@@ -479,6 +534,20 @@ class OpportunityService:
                 detail=f"{company.name} está {label}: no se le pueden hacer presupuestos.",
             )
 
+    @staticmethod
+    def _origin_for(data: OpportunityCreate) -> str | None:
+        """Origen propio del presupuesto; si no viene, se precarga con el del cliente (empresa o contacto)."""
+        if data.origin is not None:
+            return data.origin.strip() or None
+        try:
+            if data.company_id:
+                return CompanyService.get_company_by_id(data.company_id).origin or None
+            if data.contact_id:
+                return ContactService.get_contact_by_id(data.contact_id).origin or None
+        except Exception:
+            return None
+        return None
+
     @classmethod
     def create_opportunity(
         cls,
@@ -493,6 +562,19 @@ class OpportunityService:
                 detail="Toda oportunidad debe estar asociada como mínimo a una Empresa o a un Contacto.",
             )
         cls._ensure_company_can_quote(data.company_id)
+
+        # Reglas 3 y 4: un presupuesto nuevo arranca abierto y en una etapa abierta.
+        stage_status, stage = _stage_status(data.stage_id)
+        if stage_status != OpportunityStatus.ABIERTA:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Un presupuesto nuevo arranca en una etapa abierta, no en «{_sentence(stage.get('name'))}».",
+            )
+        if data.status != OpportunityStatus.ABIERTA:
+            raise HTTPException(
+                status_code=422,
+                detail="Un presupuesto nuevo tiene que estar abierto.",
+            )
 
         now = datetime.now(timezone.utc)
         opp_id = uuid4()
@@ -520,6 +602,8 @@ class OpportunityService:
             "loss_reason": None,
             "discount_pct": float(data.discount_pct or 0),
             "current_version": 1,
+            "closed_at": None,
+            "origin": cls._origin_for(data),
             "is_deleted": False,
             "deleted_at": None,
             "created_at": now.isoformat(),
@@ -562,7 +646,7 @@ class OpportunityService:
         existing = cls.get_opportunity_by_id(opp_id)
         now = datetime.now(timezone.utc)
 
-        update_payload = data.model_dump(exclude_unset=True, exclude={"items", "version_note"})
+        update_payload = data.model_dump(exclude_unset=True, exclude={"items", "version_note", "reopen_reason"})
         update_payload["updated_at"] = now.isoformat()
 
         if "status" in update_payload and isinstance(update_payload["status"], OpportunityStatus):
@@ -577,6 +661,44 @@ class OpportunityService:
                 update_payload[field] = float(update_payload[field])
         if data.company_id and str(data.company_id) != str(existing.company_id):
             cls._ensure_company_can_quote(data.company_id)
+        if "origin" in update_payload:
+            update_payload["origin"] = (update_payload["origin"] or "").strip() or None
+
+        # Reglas 4 a 6 y 14: el estado sale de la etapa; cerrar deja fecha y motivo, reabrir pide motivo.
+        new_status, target_stage = _stage_status(update_payload.get("stage_id") or existing.stage_id)
+        if data.status is not None and data.status != new_status:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Un presupuesto {STATUS_LABEL[data.status]} no puede estar en la etapa "
+                    f"«{_sentence(target_stage.get('name'))}»."
+                ),
+            )
+        was_closed = existing.status != OpportunityStatus.ABIERTA
+        status_changed = new_status != existing.status
+        reopening = was_closed and new_status == OpportunityStatus.ABIERTA
+        reopen_reason = (data.reopen_reason or "").strip()
+        if reopening and not reopen_reason:
+            raise HTTPException(
+                status_code=422,
+                detail="Para reabrir el presupuesto indicá el motivo.",
+            )
+        update_payload["status"] = new_status.value
+        loss_reason: str | None = None
+        if new_status == OpportunityStatus.PERDIDA:
+            raw = data.loss_reason if "loss_reason" in data.model_fields_set else existing.loss_reason
+            loss_reason = (raw or "").strip()
+            if not loss_reason:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Para marcarlo como perdido indicá el motivo de pérdida.",
+                )
+            update_payload["loss_reason"] = loss_reason
+        elif "loss_reason" in update_payload or status_changed:
+            update_payload["loss_reason"] = None
+        if status_changed:
+            # Fecha real de cierre; al reabrir se limpia. El valor final es el monto vigente (o el que se mande).
+            update_payload["closed_at"] = now.isoformat() if new_status != OpportunityStatus.ABIERTA else None
 
         # Materiales o descuento → nueva versión con la foto completa (se conserva la historia).
         new_items_payload: list[dict] | None = None
@@ -627,10 +749,13 @@ class OpportunityService:
 
         # Cambio de etapa -> historial inmutable (Invariante 1)
         new_stage_id = update_payload.get("stage_id")
-        if new_stage_id and str(new_stage_id) != str(existing.stage_id):
+        stage_changed = bool(new_stage_id) and str(new_stage_id) != str(existing.stage_id)
+        if stage_changed:
             note = None
-            if update_payload.get("status") == OpportunityStatus.PERDIDA.value and data.loss_reason:
-                note = f"Motivo: {data.loss_reason}"
+            if reopening:
+                note = f"Reabierto: {reopen_reason}"
+            elif new_status == OpportunityStatus.PERDIDA:
+                note = f"Motivo: {loss_reason}"
             StageHistoryService.record(
                 opp_id, existing.stage_id, new_stage_id, user_id or existing.assigned_to, note, at=now
             )
@@ -664,6 +789,10 @@ class OpportunityService:
                 now,
             )
 
+        # Regla 14: un cambio a un presupuesto cerrado que no pasa por el historial de etapas queda como nota.
+        if was_closed and not stage_changed:
+            cls._log_closed_change(existing, data, user_id, now)
+
         if updated_in_db:
             return cls.get_opportunity_by_id(opp_id)
 
@@ -672,6 +801,44 @@ class OpportunityService:
         _mock_opportunities[str(opp_id)] = current_data
         enriched = cls._enrich_opportunity(current_data)
         return OpportunityResponse(**enriched)
+
+    @staticmethod
+    def _log_closed_change(
+        existing: OpportunityResponse, data: OpportunityUpdate, user_id: UUID | None, now: datetime
+    ) -> None:
+        """Deja una actividad tipo nota con quién y qué cambió en un presupuesto ya cerrado."""
+        changed = []
+        for field in data.model_fields_set:
+            label = FIELD_LABEL.get(field)
+            if not label:
+                continue
+            before = getattr(existing, field, None)
+            after = getattr(data, field)
+            if field == "items" or not _same(before, after):
+                changed.append(label)
+        if not changed:
+            return
+        from backend.models.activity import ActivityCreate
+        from backend.services.activity_service import ActivityService
+
+        detail = f"Se modificó: {', '.join(sorted(changed))}."
+        if data.version_note:
+            detail = f"{detail} {data.version_note}"
+        try:
+            ActivityService.create_activity(
+                ActivityCreate(
+                    opportunity_id=existing.id,
+                    company_id=existing.company_id,
+                    contact_id=existing.contact_id,
+                    activity_type="nota",
+                    summary=f"Cambio en presupuesto {STATUS_LABEL[existing.status]}",
+                    description=detail,
+                    activity_date=now,
+                ),
+                user_id=user_id or existing.assigned_to,
+            )
+        except Exception as e:
+            logger.warning(f"No se pudo registrar el cambio al presupuesto cerrado: {e}")
 
     @classmethod
     def delete_opportunity(cls, opp_id: UUID) -> bool:
