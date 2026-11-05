@@ -26,7 +26,12 @@ def test_list_users_includes_demo_roles(client: TestClient):
 def test_admin_creates_and_deactivates_user(client: TestClient):
     res = client.post(
         "/api/users",
-        json={"email": "nuevo.vendedor@crm.com", "full_name": "Nuevo Vendedor", "role": "ejecutivo_ventas"},
+        json={
+            "email": "nuevo.vendedor@crm.com",
+            "full_name": "Nuevo Vendedor",
+            "role": "ejecutivo_ventas",
+            "password": "ladrillo2026",
+        },
     )
     assert res.status_code == 201
     user = res.json()
@@ -39,13 +44,19 @@ def test_admin_creates_and_deactivates_user(client: TestClient):
 
 
 def test_duplicate_email_is_rejected(client: TestClient):
-    res = client.post("/api/users", json={"email": "admin@crm.com", "full_name": "Otro Admin", "role": "admin"})
+    res = client.post(
+        "/api/users",
+        json={"email": "admin@crm.com", "full_name": "Otro Admin", "role": "admin", "password": "ladrillo2026"},
+    )
     assert res.status_code == 409
 
 
 def test_vendedor_cannot_manage_users():
     with _vendedor_client() as vendedor:
-        res = vendedor.post("/api/users", json={"email": "x@crm.com", "full_name": "Equis", "role": "admin"})
+        res = vendedor.post(
+            "/api/users",
+            json={"email": "x@crm.com", "full_name": "Equis", "role": "admin", "password": "ladrillo2026"},
+        )
         assert res.status_code == 403
 
 

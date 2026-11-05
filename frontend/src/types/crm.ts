@@ -364,3 +364,8 @@ export interface CrmUserFormData {
   role: CrmRole;
   is_active: boolean;
 }
+
+/** Alta de usuario: el administrador define la contraseña inicial (no se guarda en el front). */
+export interface CrmUserCreateData extends CrmUserFormData {
+  password: string;
+}
