@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Response, status
 
 from backend.controllers.permissions import require_roles, session_user_id
-from backend.models.user import CrmUserCreate, CrmUserResponse, CrmUserUpdate
+from backend.models.user import CrmUserCreate, CrmUserResponse, CrmUserUpdate, PasswordReset
 from backend.services.user_service import UserService
 
 router = APIRouter(prefix="/api/users", tags=["Usuarios y Roles"])
@@ -37,3 +37,15 @@ def update_user(user_id: UUID, data: CrmUserUpdate, authorization: str | None = 
     if data.is_active is False and session_user_id(authorization) == user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No podés darte de baja a vos mismo")
     return UserService.update_user(user_id, data)
+
+
+@router.post(
+    "/{user_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Restablecer la contraseña de un usuario (solo administrador)",
+)
+def reset_password(user_id: UUID, data: PasswordReset, authorization: str | None = Header(None)) -> Response:
+    """El administrador define una contraseña nueva. La contraseña nunca se devuelve ni se registra."""
+    require_roles(authorization, {"admin"})
+    UserService.reset_password(user_id, data.password.get_secret_value())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

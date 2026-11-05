@@ -41,7 +41,12 @@ def _stages() -> list[dict]:
 def _new_seller(client: TestClient, name: str) -> str:
     res = client.post(
         "/api/users",
-        json={"email": f"{name.lower().replace(' ', '.')}@crm.com", "full_name": name, "role": "ejecutivo_ventas"},
+        json={
+            "email": f"{name.lower().replace(' ', '.')}@crm.com",
+            "full_name": name,
+            "role": "ejecutivo_ventas",
+            "password": "vendedor-2026",
+        },
     )
     assert res.status_code == 201
     return res.json()["id"]

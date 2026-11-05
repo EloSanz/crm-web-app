@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, SecretStr
 
 
 class CrmRole(str, Enum):
@@ -19,7 +19,13 @@ class CrmUserBase(BaseModel):
 
 
 class CrmUserCreate(CrmUserBase):
-    pass
+    # SecretStr: si el objeto termina en un log o un repr, la contraseña sale como '**********'.
+    # El largo mínimo se valida en el servicio para devolver un mensaje en castellano (400).
+    password: SecretStr = Field(..., description="Contraseña inicial que define el administrador (mínimo 8)")
+
+
+class PasswordReset(BaseModel):
+    password: SecretStr = Field(..., description="Contraseña nueva (mínimo 8 caracteres)")
 
 
 class CrmUserUpdate(BaseModel):
