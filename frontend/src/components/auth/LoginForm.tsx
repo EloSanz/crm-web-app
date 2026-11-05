@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Field';
 import { buildApiUrl, CRM_CLIENT_API_KEY } from '@/lib/api';
 
+// Accesos rápidos de demo: en desarrollo siempre; en producción sólo si se habilitan
+// (deben coincidir con ALLOW_DEMO_LOGIN del backend, si no el login falla).
+const SHOW_DEMO_USERS = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_SHOW_DEMO_USERS === 'true';
+
 const DEMO_USERS = [
   { role: 'Administrador', email: 'admin@crm.com', password: 'admin123' },
   { role: 'Responsable comercial', email: 'gerente@crm.com', password: 'gerente123' },
@@ -121,6 +125,7 @@ export function LoginForm() {
         </Button>
       </form>
 
+      {SHOW_DEMO_USERS && (
       <div className="mt-10 border-t border-linea pt-6">
         <div className="grid grid-cols-1 gap-2">
           {DEMO_USERS.map((u) => (
@@ -140,6 +145,7 @@ export function LoginForm() {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }
