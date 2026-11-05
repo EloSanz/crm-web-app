@@ -11,6 +11,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { DetailSection, InfoRow, OpportunityMiniList } from '@/components/clients/DetailBits';
+import { ClientHistory } from '@/components/clients/ClientHistory';
 import { fetchContact, fetchOpportunities } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { CLIENT_STATUS } from '@/lib/catalogs';
@@ -83,9 +84,12 @@ export default function ContactDetailPage() {
               <InfoRow label="Alta">{formatDate(c.created_at)}</InfoRow>
             </dl>
           </DetailSection>
-          <DetailSection title="Presupuestos" count={opportunities.length}>
-            <OpportunityMiniList opportunities={opportunities} />
-          </DetailSection>
+          <div className="space-y-6">
+            <DetailSection title="Presupuestos" count={opportunities.length}>
+              <OpportunityMiniList opportunities={opportunities} />
+            </DetailSection>
+            <ClientHistory scope="contacts" id={c.id} />
+          </div>
         </div>
       </div>
     </AppLayout>

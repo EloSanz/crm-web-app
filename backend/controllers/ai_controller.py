@@ -4,8 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, status
 
 from backend.controllers.permissions import (
-    MANAGER_ROLES,
     SELLER_ROLE,
+    authorize_company,
     ensure_owner,
     session_from_header,
     session_user_id,
@@ -169,22 +169,8 @@ def create_draft(data: DraftRequest, authorization: str | None = Header(None)) -
 # ---------------------------------------------------------------------------
 
 
-def _authorize_company(authorization: str | None, company_id: UUID):
-    """Admin y responsable comercial preguntan por cualquier cliente. Un vendedor, por los clientes
-    asignados a él o con algún presupuesto suyo (el caso típico: heredó la constructora)."""
-    session = session_from_header(authorization)
-    company = CompanyService.get_company_by_id(company_id)
-    if session.get("role") in MANAGER_ROLES:
-        return company
-    me = str(session.get("sub") or "")
-    if me and str(company.assigned_to) == me:
-        return company
-    if me and OpportunityService.get_opportunities(company_id=company_id, assigned_to=UUID(me), limit=1):
-        return company
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Sólo podés consultar clientes asignados a vos o con presupuestos tuyos",
-    )
+# Mismo criterio que el historial comercial: ver backend/controllers/permissions.py.
+_authorize_company = authorize_company
 
 
 @router.get(
