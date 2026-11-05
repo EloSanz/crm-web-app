@@ -8,11 +8,11 @@ import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
-import { CLIENT_STATUS, ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { CLIENT_STATUS } from '@/lib/catalogs';
+import { useCatalog, withCurrent } from '@/lib/useCatalogs';
 import { formatCuit, isValidCuit } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as CompanyStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
-const ORIGINS = ORIGIN_OPTIONS.map((o) => ({ value: o, label: o }));
 
 export function CompanyForm({ company }: { company?: Company | null }) {
   const router = useRouter();
@@ -20,6 +20,8 @@ export function CompanyForm({ company }: { company?: Company | null }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cuitError, setCuitError] = useState<string | null>(null);
+  // Orígenes activos (Configuración) + el que ya tenía la empresa, aunque se haya desactivado.
+  const origins = withCurrent(useCatalog('origin'), company?.origin);
   const [data, setData] = useState<CompanyFormData>({
     name: company?.name ?? '',
     cuit: company?.cuit ? formatCuit(company.cuit) : '',
@@ -29,7 +31,7 @@ export function CompanyForm({ company }: { company?: Company | null }) {
     address: company?.address ?? '',
     website: company?.website ?? '',
     status: company?.status ?? 'potencial',
-    origin: company?.origin ?? ORIGIN_OPTIONS[0],
+    origin: company?.origin ?? '',
     notes: company?.notes ?? '',
   });
   const set = <K extends keyof CompanyFormData>(k: K, v: CompanyFormData[K]) => setData((d) => ({ ...d, [k]: v }));
@@ -41,7 +43,8 @@ export function CompanyForm({ company }: { company?: Company | null }) {
     if (cuitMsg) return setCuitError(cuitMsg);
     setSaving(true);
     try {
-      const saved = company ? await updateCompany(company.id, data) : await createCompany(data);
+      const payload = { ...data, origin: data.origin || origins[0]?.value };
+      const saved = company ? await updateCompany(company.id, payload) : await createCompany(payload);
       toast.success(company ? 'Cambios guardados' : 'Empresa registrada', data.name);
       router.push(`/companies/${saved.id ?? company?.id}`);
     } catch (err) {
@@ -97,7 +100,7 @@ export function CompanyForm({ company }: { company?: Company | null }) {
           {({ id }) => <Select id={id} value={data.status} onChange={(v) => set('status', v as CompanyStatus)} options={STATUS_OPTIONS} />}
         </Field>
         <Field label="Origen">
-          {({ id }) => <Select id={id} value={data.origin || ''} onChange={(v) => set('origin', v)} options={ORIGINS} />}
+          {({ id }) => <Select id={id} value={data.origin || origins[0]?.value || ''} onChange={(v) => set('origin', v)} options={origins} />}
         </Field>
         <Field label="Notas" className="sm:col-span-2">
           {({ id }) => <Textarea id={id} rows={3} value={data.notes || ''} onChange={(e) => set('notes', e.target.value)} />}

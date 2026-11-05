@@ -22,7 +22,7 @@ import { healthOf, HEALTH_META, type Health } from '@/lib/health';
 import { formatARSCompact, sentenceCase } from '@/lib/format';
 import { useCurrentUser } from '@/lib/useUser';
 import { isManager } from '@/lib/roles';
-import { ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 
 const load = async () => {
   const [opportunities, stages] = await Promise.all([fetchOpportunities(), fetchStages()]);
@@ -73,6 +73,7 @@ export default function OpportunitiesPage() {
   const [status, setStatus] = useState<StatusFilter>('abierta');
   const [owner, setOwner] = useState(ALL);
   const [origin, setOrigin] = useState(ALL);
+  const originCatalog = useCatalog('origin');
   const manager = isManager(useCurrentUser());
 
   // Responsable y origen recortan todo, también los totales de arriba.
@@ -90,10 +91,12 @@ export default function OpportunitiesPage() {
     return [...names].sort((a, b) => a[1].localeCompare(b[1], 'es')).map(([value, label]) => ({ value, label }));
   }, [data]);
 
+  // Orígenes configurados (en su orden) más los que ya tengan presupuestos aunque se hayan desactivado.
   const originChoices = useMemo(() => {
-    const extra = (data?.opportunities ?? []).map((o) => o.origin).filter((o): o is string => Boolean(o) && !ORIGIN_OPTIONS.includes(o as string));
-    return [...ORIGIN_OPTIONS, ...[...new Set(extra)].sort()];
-  }, [data]);
+    const labels = originCatalog.map((i) => i.label);
+    const extra = (data?.opportunities ?? []).map((o) => o.origin).filter((o): o is string => Boolean(o) && !labels.includes(o as string));
+    return [...labels, ...[...new Set(extra)].sort()];
+  }, [data, originCatalog]);
 
   /** Elegir un estado deja la etapa y el semáforo coherentes; los cerrados se ven mejor en la lista. */
   const pickStatus = (next: StatusFilter) => {

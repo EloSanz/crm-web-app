@@ -19,7 +19,8 @@ import { createOpportunity, fetchCompanies, fetchContacts, fetchProducts, fetchP
 import { isManager } from '@/lib/roles';
 import { useLoad } from '@/lib/useLoad';
 import { useCurrentUser } from '@/lib/useUser';
-import { CLIENT_STATUS, ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { CLIENT_STATUS } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 import { formatARS, formatQty, sentenceCase } from '@/lib/format';
 
 const load = async () => {
@@ -89,6 +90,7 @@ export default function NewOpportunityPage() {
 
 function QuoteBuilder({ data }: { data: QuoteData }) {
   const router = useRouter();
+  const originLabels = useCatalog('origin').map((i) => i.label);
   const toast = useToast();
   const user = useCurrentUser();
 
@@ -148,7 +150,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const clientName = clientType === 'company' ? company?.name : contact ? `${contact.first_name} ${contact.last_name}` : undefined;
   const clientOrigin = (clientType === 'company' ? company?.origin : contact?.origin) ?? '';
   const origin = originOverride ?? clientOrigin;
-  const originChoices = origin && !ORIGIN_OPTIONS.includes(origin) ? [...ORIGIN_OPTIONS, origin] : ORIGIN_OPTIONS;
+  const originChoices = origin && !originLabels.includes(origin) ? [...originLabels, origin] : originLabels;
   const totals = quoteTotals(items, discountPct);
   const autoTitle = project ? `Materiales · ${project.name}` : '';
   const effectiveStage = stageId || data.stages[0]?.id || '';

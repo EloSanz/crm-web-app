@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   ArrowUp,
+  CircleDot,
   ClipboardList,
   FileText,
   Flag,
@@ -19,18 +20,20 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { Activity, ActivityAttachment, ActivityType, Contact, Opportunity, TimelineEvent } from '@/types/crm';
+import type { Activity, ActivityAttachment, ActivityType, Contact, Opportunity, SystemActivityType, TimelineEvent } from '@/types/crm';
 import { createActivity, uploadAttachment } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { DatePicker, toISODate } from '@/components/ui/DatePicker';
 import { useToast } from '@/components/ui/Toast';
-import { ACTIVITY_TYPES } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 import { formatARSCompact } from '@/lib/format';
 import { AttachmentViewer, formatBytes, isImage } from './AttachmentViewer';
 
-export const ACTIVITY_ICON: Record<ActivityType, React.ComponentType<{ className?: string }>> = {
+type IconType = React.ComponentType<{ className?: string }>;
+
+export const ACTIVITY_ICON: Record<SystemActivityType, IconType> = {
   llamada: Phone,
   whatsapp: MessageSquare,
   visita_obra: MapPin,
@@ -41,7 +44,10 @@ export const ACTIVITY_ICON: Record<ActivityType, React.ComponentType<{ className
   nota: FileText,
 };
 
-const PLACEHOLDER: Record<ActivityType, string> = {
+/** Los tipos que agrega el administrador desde Configuración usan este ícono genérico. */
+export const DEFAULT_ACTIVITY_ICON: IconType = CircleDot;
+
+const PLACEHOLDER: Record<SystemActivityType, string> = {
   llamada: 'Llamada: ¿qué se habló?',
   whatsapp: 'WhatsApp: ¿qué respondió?',
   visita_obra: 'Visita a la obra: ¿qué viste?',
@@ -92,6 +98,9 @@ interface ActivityLogProps {
 export function ActivityLog({ opp, activities, events = [], contacts, onSaved, onShowVersions }: ActivityLogProps) {
   const toast = useToast();
   const [type, setType] = useState<ActivityType>('llamada');
+  // Tipos activos en el orden de Configuración.
+  const activityTypes = useCatalog('activity_type');
+  const typeLabel = activityTypes.find((t) => t.code === type)?.label;
   const [summary, setSummary] = useState('');
   const [contactId, setContactId] = useState(opp.contact_id ?? '');
   const [date, setDate] = useState(() => toISODate(new Date()));
@@ -237,19 +246,24 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
               Soltá los archivos para adjuntarlos
             </div>
           )}
-          <div role="radiogroup" aria-label="Tipo de contacto" className="grid grid-cols-8 gap-1">
-            {ACTIVITY_TYPES.map((t) => {
-              const Icon = ACTIVITY_ICON[t.value];
-              const active = type === t.value;
+          <div
+            role="radiogroup"
+            aria-label="Tipo de contacto"
+            className="grid gap-1"
+            style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(activityTypes.length, 1), 8)}, minmax(0, 1fr))` }}
+          >
+            {activityTypes.map((t) => {
+              const Icon = ACTIVITY_ICON[t.code as SystemActivityType] ?? DEFAULT_ACTIVITY_ICON;
+              const active = type === t.code;
               return (
                 <button
-                  key={t.value}
+                  key={t.code}
                   type="button"
                   role="radio"
                   aria-checked={active}
                   aria-label={t.label}
                   title={t.label}
-                  onClick={() => setType(t.value)}
+                  onClick={() => setType(t.code)}
                   className={clsx(
                     'flex h-10 min-w-0 items-center justify-center rounded-[10px] border transition-colors cursor-pointer',
                     active ? 'border-pavonado bg-pavonado text-white' : 'border-linea text-tinta hover:border-linea-fuerte'
@@ -260,8 +274,15 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
               );
             })}
           </div>
-          <Field label={ACTIVITY_TYPES.find((t) => t.value === type)?.label ?? 'Qué pasó'}>
-            {({ id }) => <Input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder={PLACEHOLDER[type]} />}
+          <Field label={typeLabel ?? 'Qué pasó'}>
+            {({ id }) => (
+              <Input
+                id={id}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder={PLACEHOLDER[type as SystemActivityType] ?? (typeLabel ? `${typeLabel}: ¿qué pasó?` : '¿Qué pasó?')}
+              />
+            )}
           </Field>
           <div className="grid grid-cols-1 gap-3 @[30rem]:grid-cols-2">
             <Field label="Con quién">
@@ -396,7 +417,7 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
 }
 
 function ActivityItem({ activity: a, who, onOpen }: { activity: Activity; who: string | null; onOpen: (files: ActivityAttachment[], index: number) => void }) {
-  const Icon = ACTIVITY_ICON[a.activity_type] ?? FileText;
+  const Icon = ACTIVITY_ICON[a.activity_type as SystemActivityType] ?? DEFAULT_ACTIVITY_ICON;
   const files = a.attachments ?? [];
   return (
     <div className="flex gap-3">

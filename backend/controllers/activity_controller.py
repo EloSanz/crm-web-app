@@ -6,6 +6,7 @@ from backend.controllers.auth_controller import decode_simple_token
 from backend.controllers.permissions import ensure_owner, owner_scope
 from backend.models.activity import ActivityCreate, ActivityResponse
 from backend.services.activity_service import ActivityService
+from backend.services.catalog_service import CatalogService
 from backend.services.opportunity_service import OpportunityService
 
 router = APIRouter(tags=["Actividades Comerciales y Métrica NSM"])
@@ -47,6 +48,8 @@ def create_activity(
 ) -> ActivityResponse:
     """Registra un hecho comercial inmutable respaldando el seguimiento del presupuesto."""
     user_id = _extract_user_id(authorization)
+    # El tipo tiene que existir y estar activo en el catálogo que configura el administrador.
+    CatalogService.ensure_activity_type(data.activity_type)
     if data.opportunity_id:
         ensure_owner(authorization, OpportunityService.get_opportunity_by_id(data.opportunity_id).assigned_to)
     return ActivityService.create_activity(data, user_id=user_id)

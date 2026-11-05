@@ -128,6 +128,11 @@ export function UserMenuCompact() {
               Usuarios
             </Link>
           )}
+          {isAdmin(currentUser) && (
+            <Link role="menuitem" href="/configuracion" onClick={() => setOpen(false)} className="flex h-11 items-center rounded-lg px-3 text-[15px] font-semibold hover:bg-chapa-2">
+              Configuración
+            </Link>
+          )}
           <Link role="menuitem" href="/cuenta/correo" onClick={() => setOpen(false)} className="flex h-11 items-center gap-2.5 rounded-lg px-3 text-[15px] font-semibold hover:bg-chapa-2">
             <Mail className="w-5 h-5 text-tiza" />
             Mi correo

@@ -9,10 +9,10 @@ import { Select } from '@/components/ui/Select';
 import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
 import { ReturnToQuoteDialog } from '@/components/opportunities/ReturnToQuoteDialog';
-import { CLIENT_STATUS, CONTACT_ROLES, ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { CLIENT_STATUS, CONTACT_ROLES } from '@/lib/catalogs';
+import { useCatalog, withCurrent } from '@/lib/useCatalogs';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as ContactStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
-const ORIGINS = ORIGIN_OPTIONS.map((o) => ({ value: o, label: o }));
 
 interface ContactFormProps {
   contact?: Contact | null;
@@ -28,6 +28,8 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ first?: string; last?: string; dni?: string; phone?: string; email?: string }>({});
   const [created, setCreated] = useState<Contact | null>(null);
+  // Orígenes activos (Configuración) + el que ya tenía el contacto, aunque se haya desactivado.
+  const origins = withCurrent(useCatalog('origin'), contact?.origin);
   const [data, setData] = useState<ContactFormData>({
     first_name: contact?.first_name ?? '',
     last_name: contact?.last_name ?? '',
@@ -37,7 +39,7 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
     phone: contact?.phone ?? '',
     document_number: contact?.document_number ?? '',
     status: contact?.status ?? 'potencial',
-    origin: contact?.origin ?? ORIGIN_OPTIONS[0],
+    origin: contact?.origin ?? '',
     notes: contact?.notes ?? '',
   });
   const set = <K extends keyof ContactFormData>(k: K, v: ContactFormData[K]) => setData((d) => ({ ...d, [k]: v }));
@@ -49,7 +51,7 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
     setErrors(next);
     if (next.first || next.last) return;
     setSaving(true);
-    const payload = { ...data, company_id: data.company_id || undefined };
+    const payload = { ...data, company_id: data.company_id || undefined, origin: data.origin || origins[0]?.value };
     const fullName = `${data.first_name} ${data.last_name}`;
     try {
       const saved = contact ? await updateContact(contact.id, payload) : await createContact(payload);
@@ -144,7 +146,7 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
           {({ id }) => <Select id={id} value={data.status} onChange={(v) => set('status', v as ContactStatus)} options={STATUS_OPTIONS} />}
         </Field>
         <Field label="Origen" className="sm:col-span-2">
-          {({ id }) => <Select id={id} value={data.origin || ''} onChange={(v) => set('origin', v)} options={ORIGINS} />}
+          {({ id }) => <Select id={id} value={data.origin || origins[0]?.value || ''} onChange={(v) => set('origin', v)} options={origins} />}
         </Field>
         <Field label="Notas" className="sm:col-span-2">
           {({ id }) => <Textarea id={id} rows={3} value={data.notes || ''} onChange={(e) => set('notes', e.target.value)} />}

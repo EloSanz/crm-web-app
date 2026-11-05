@@ -161,15 +161,19 @@ export interface Opportunity {
   updated_at: string;
 }
 
-export type ActivityType = 
-  | 'llamada' 
-  | 'whatsapp' 
-  | 'reunion' 
-  | 'visita_obra' 
-  | 'mostrador' 
-  | 'email' 
-  | 'nota' 
+/** Tipos que usa el sistema; el administrador puede sumar otros desde Configuración. */
+export type SystemActivityType =
+  | 'llamada'
+  | 'whatsapp'
+  | 'reunion'
+  | 'visita_obra'
+  | 'mostrador'
+  | 'email'
+  | 'nota'
   | 'presupuesto';
+
+/** Código de un tipo de actividad del catálogo (los de sistema o los que agregue el administrador). */
+export type ActivityType = SystemActivityType | (string & {});
 
 export interface ActivityAttachment {
   url: string;
@@ -260,6 +264,8 @@ export interface Stage {
   is_closed_won: boolean;
   is_closed_lost: boolean;
   color: string;
+  /** Baja lógica desde Configuración: las desactivadas no aparecen en el tablero ni en los selects. */
+  is_active?: boolean;
 }
 
 export type PriceTier = 'minorista' | 'mayorista' | 'manual';

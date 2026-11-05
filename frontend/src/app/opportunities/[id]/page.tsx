@@ -34,7 +34,7 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/useUser';
 import { isManager } from '@/lib/roles';
-import { ORIGIN_OPTIONS } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 import type { Contact } from '@/types/crm';
 import { useLoad } from '@/lib/useLoad';
 import { healthOf } from '@/lib/health';
@@ -43,6 +43,7 @@ import { formatARS, formatDate, formatQty, sentenceCase, shortRef } from '@/lib/
 export default function OpportunityDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
+  const originLabels = useCatalog('origin').map((i) => i.label);
   // Al llegar desde una cita de «Ponete al día», volver lleva de nuevo al chat.
   const volver = useSearchParams()?.get('volver');
   const back = volver ? { href: safeBackHref(volver, '/opportunities'), label: volver.endsWith('/ponete-al-dia') ? 'Ponete al día' : 'Volver' } : { href: '/opportunities', label: 'Presupuestos' };
@@ -316,7 +317,7 @@ export default function OpportunityDetailPage() {
                       value={opp.origin ?? ''}
                       onChange={(v) => v !== (opp.origin ?? '') && assign('origin', v)}
                       placeholder="Sin origen"
-                      options={[{ value: '', label: 'Sin origen' }, ...originOptions(opp.origin).map((o) => ({ value: o, label: o }))]}
+                      options={[{ value: '', label: 'Sin origen' }, ...originOptions(originLabels, opp.origin).map((o) => ({ value: o, label: o }))]}
                     />
                   )}
                 </Datum>
@@ -397,9 +398,9 @@ export default function OpportunityDetailPage() {
   );
 }
 
-/** Orígenes del catálogo más el que ya tenga el presupuesto (si se cargó uno fuera de la lista). */
-function originOptions(current: string | null | undefined): string[] {
-  return current && !ORIGIN_OPTIONS.includes(current) ? [...ORIGIN_OPTIONS, current] : ORIGIN_OPTIONS;
+/** Orígenes del catálogo más el que ya tenga el presupuesto (si se cargó uno fuera de la lista o se desactivó). */
+function originOptions(labels: string[], current: string | null | undefined): string[] {
+  return current && !labels.includes(current) ? [...labels, current] : labels;
 }
 
 function Datum({ label, children }: { label: string; children: React.ReactNode }) {

@@ -136,7 +136,7 @@ def _stage_names() -> dict[str, str]:
     try:
         from backend.controllers.opportunity_controller import list_stages
 
-        return {str(st["id"]): st["name"] for st in list_stages()}
+        return {str(st["id"]): st["name"] for st in list_stages(include_inactive=True)}
     except Exception:
         return {}
 
@@ -209,11 +209,11 @@ def _activity_entry(a: ActivityResponse, **extra) -> Entry:
     return Entry(
         kind="actividad",
         at=_aware(a.activity_date),
-        title=f"{ACTIVITY_LABEL.get(a.activity_type.value, a.activity_type.value)}: {a.summary}",
+        title=f"{ACTIVITY_LABEL.get(a.activity_type, a.activity_type)}: {a.summary}",
         detail=a.description,
         source_id=str(a.id),
         user_name=a.user_name,
-        activity_type=a.activity_type.value,
+        activity_type=a.activity_type,
         **extra,
     )
 

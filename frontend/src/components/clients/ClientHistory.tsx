@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { HistoryEntry, HistoryKind, HistoryPage, HistoryScope } from '@/types/history';
 import { fetchClientHistory } from '@/lib/api-history';
-import { ACTIVITY_TYPES } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterChips } from '@/components/ui/FilterChips';
@@ -203,7 +203,8 @@ export function ClientHistory({ scope, id }: { scope: HistoryScope; id: string }
 
 function HistoryItem({ entry: e, at, back }: { entry: HistoryEntry; at: Date; back: string }) {
   const milestone = MILESTONES.includes(e.kind);
-  const activityType = e.kind === 'actividad' && e.activity_type ? ACTIVITY_TYPES.find((t) => t.value === e.activity_type) : undefined;
+  const activityTypes = useCatalog('activity_type');
+  const activityType = e.kind === 'actividad' && e.activity_type ? activityTypes.find((t) => t.code === e.activity_type) : undefined;
   const Icon = (e.activity_type && ACTIVITY_ICON[e.activity_type]) || KIND_ICON[e.kind] || FileText;
   const typeLabel = activityType?.label ?? e.kind_label;
   return (
