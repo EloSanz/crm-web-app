@@ -4,7 +4,10 @@ from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
 from backend.controllers.permissions import MANAGER_ROLES, ensure_owner, owner_scope, require_roles
-from backend.database import get_supabase_client
+
+# Las etapas viven en stage_controller; se reexportan para no romper los imports existentes.
+from backend.controllers.stage_controller import list_stages  # noqa: F401
+from backend.controllers.stage_controller import router as stages_router  # noqa: F401
 from backend.models.opportunity import (
     OpportunityCreate,
     OpportunityResponse,
@@ -16,7 +19,6 @@ from backend.models.opportunity import (
 from backend.services.opportunity_service import OpportunityService
 
 router = APIRouter(prefix="/api/opportunities", tags=["Oportunidades / Presupuestos"])
-stages_router = APIRouter(prefix="/api/stages", tags=["Etapas del Embudo"])
 
 
 def _extract_user_id(authorization: str | None) -> UUID | None:
@@ -144,76 +146,3 @@ def delete_opportunity(opp_id: UUID, authorization: str | None = Header(None)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo dar de baja el presupuesto",
         )
-
-
-@stages_router.get(
-    "",
-    summary="Listar etapas del embudo comercial del corralón",
-)
-def list_stages():
-    """Retorna las 6 etapas ordenadas por posición."""
-    try:
-        client = get_supabase_client()
-        res = client.table("crm_stages").select("*").order("position").execute()
-        if res.data:
-            return res.data
-    except Exception:
-        pass
-
-    # Fallback con las 6 etapas de corralón
-    return [
-        {
-            "id": "11111111-0000-0000-0000-000000000001",
-            "name": "Consulta Recibida",
-            "slug": "consulta-recibida",
-            "position": 1,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#38bdf8",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000002",
-            "name": "Presupuesto en Preparación",
-            "slug": "presupuesto-preparacion",
-            "position": 2,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#818cf8",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000003",
-            "name": "Presupuesto Enviado",
-            "slug": "presupuesto-enviado",
-            "position": 3,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#fbbf24",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000004",
-            "name": "Negociación",
-            "slug": "negociacion",
-            "position": 4,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#f97316",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000005",
-            "name": "Venta Concretada",
-            "slug": "venta-concretada",
-            "position": 5,
-            "is_closed_won": True,
-            "is_closed_lost": False,
-            "color": "#22c55e",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000006",
-            "name": "Perdida",
-            "slug": "perdida",
-            "position": 6,
-            "is_closed_won": False,
-            "is_closed_lost": True,
-            "color": "#ef4444",
-        },
-    ]

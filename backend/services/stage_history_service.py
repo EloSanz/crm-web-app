@@ -47,7 +47,7 @@ class StageHistoryService:
         from backend.controllers.opportunity_controller import list_stages
         from backend.services.user_service import UserService
 
-        stage_names = {str(s["id"]): s["name"] for s in list_stages()}
+        stage_names = {str(s["id"]): s["name"] for s in list_stages(include_inactive=True)}
         users = UserService.name_map()
         out = []
         for r in rows:

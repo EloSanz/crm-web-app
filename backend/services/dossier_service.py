@@ -133,7 +133,7 @@ def _stage_names() -> dict[str, str]:
     try:
         from backend.controllers.opportunity_controller import list_stages
 
-        return {str(st["id"]): st["name"] for st in list_stages()}
+        return {str(st["id"]): st["name"] for st in list_stages(include_inactive=True)}
     except Exception:
         return {}
 
@@ -202,7 +202,7 @@ def _opportunity_entries(opp: OpportunityResponse) -> list[Entry]:
             Entry(
                 kind="actividad",
                 at=_aware(a.activity_date),
-                title=f"{ACTIVITY_LABEL.get(a.activity_type.value, a.activity_type.value)}: {a.summary}",
+                title=f"{ACTIVITY_LABEL.get(a.activity_type, a.activity_type)}: {a.summary}",
                 detail=a.description,
                 source_id=str(a.id),
                 user_name=a.user_name,
@@ -284,7 +284,7 @@ def build_for_company(company_id: UUID) -> Dossier:
             Entry(
                 kind="actividad",
                 at=_aware(a.activity_date),
-                title=f"{ACTIVITY_LABEL.get(a.activity_type.value, a.activity_type.value)}: {a.summary}",
+                title=f"{ACTIVITY_LABEL.get(a.activity_type, a.activity_type)}: {a.summary}",
                 detail=a.description,
                 opportunity_id=a.opportunity_id,
                 opportunity_title=titles.get(a.opportunity_id) if a.opportunity_id else None,

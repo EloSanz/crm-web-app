@@ -7,7 +7,7 @@ import type { Opportunity } from '@/types/crm';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { AffixInput, Field } from '@/components/ui/Field';
-import { LOSS_REASONS } from '@/lib/catalogs';
+import { useCatalog } from '@/lib/useCatalogs';
 import { formatARS } from '@/lib/format';
 
 interface WinDialogProps {
@@ -77,6 +77,8 @@ interface LostDialogProps {
 
 export function LostDialog({ opp, submitting, onCancel, onConfirm }: LostDialogProps) {
   const [reason, setReason] = useState('');
+  // Motivos activos, en el orden de Configuración (se guarda el texto del motivo).
+  const reasons = useCatalog('loss_reason').map((r) => r.label);
   return (
     <Dialog
       title="¿Por qué se perdió?"
@@ -101,7 +103,7 @@ export function LostDialog({ opp, submitting, onCancel, onConfirm }: LostDialogP
       <fieldset>
         <legend className="sr-only">Motivo</legend>
         <div className="grid gap-1.5">
-          {LOSS_REASONS.map((r) => (
+          {reasons.map((r) => (
             <label
               key={r}
               className={clsx(

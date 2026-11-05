@@ -207,7 +207,12 @@ class _Ctx:
 
         self.stages = sorted(data.stages, key=lambda s: s.get("position") or 0)
         self.stage_by_id = {str(s["id"]): s for s in self.stages}
-        self.open_stages = [s for s in self.stages if not s.get("is_closed_won") and not s.get("is_closed_lost")]
+        # Las etapas desactivadas no se muestran en el embudo, pero sus cierres siguen contando.
+        self.open_stages = [
+            s
+            for s in self.stages
+            if s.get("is_active", True) and not s.get("is_closed_won") and not s.get("is_closed_lost")
+        ]
         self.won_stage_ids = {str(s["id"]) for s in self.stages if s.get("is_closed_won")}
         self.lost_stage_ids = {str(s["id"]) for s in self.stages if s.get("is_closed_lost")}
 
@@ -520,7 +525,7 @@ class MetricsService:
         data = Dataset(
             now=datetime.now(timezone.utc),
             opps=OpportunityService.get_opportunities(limit=500),
-            stages=list(list_stages() or []),
+            stages=list(list_stages(include_inactive=True) or []),
             history=StageHistoryService.list_all(),
             activities=cls._activities(),
             users=UserService.list_users(),

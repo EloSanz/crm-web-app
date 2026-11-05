@@ -137,7 +137,7 @@ class ActivityService:
             "contact_id": str(data.contact_id) if data.contact_id else None,
             "company_id": str(data.company_id) if data.company_id else None,
             "user_id": str(actual_user_id),
-            "activity_type": data.activity_type.value,
+            "activity_type": data.activity_type,
             "summary": data.summary.strip(),
             "description": data.description.strip() if data.description else None,
             "activity_date": _aware(data.activity_date).isoformat(),
