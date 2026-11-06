@@ -13,6 +13,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
+from backend.models.activity import ActivityResponse
 from backend.models.company import CompanyResponse
 from backend.models.contact import ContactResponse
 from backend.models.message import MessageDirection
@@ -82,6 +83,8 @@ class Entry:
     source_id: str | None = None
     user_name: str | None = None
     ref: str = ""
+    # Tipo de actividad (llamada, visita_obra…) para que el historial muestre su ícono.
+    activity_type: str | None = None
 
     def citation(self, company_id: UUID | None) -> dict:
         if self.opportunity_id:
@@ -133,7 +136,7 @@ def _stage_names() -> dict[str, str]:
     try:
         from backend.controllers.opportunity_controller import list_stages
 
-        return {str(st["id"]): st["name"] for st in list_stages()}
+        return {str(st["id"]): st["name"] for st in list_stages(include_inactive=True)}
     except Exception:
         return {}
 
@@ -198,18 +201,21 @@ def _opportunity_entries(opp: OpportunityResponse) -> list[Entry]:
     except Exception as e:
         logger.warning(f"No se pudo armar la línea de tiempo de {opp.id}: {e}")
     for a in ActivityService.get_activities_by_opportunity(opp.id):
-        out.append(
-            Entry(
-                kind="actividad",
-                at=_aware(a.activity_date),
-                title=f"{ACTIVITY_LABEL.get(a.activity_type.value, a.activity_type.value)}: {a.summary}",
-                detail=a.description,
-                source_id=str(a.id),
-                user_name=a.user_name,
-                **base,
-            )
-        )
+        out.append(_activity_entry(a, **base))
     return out
+
+
+def _activity_entry(a: ActivityResponse, **extra) -> Entry:
+    return Entry(
+        kind="actividad",
+        at=_aware(a.activity_date),
+        title=f"{ACTIVITY_LABEL.get(a.activity_type, a.activity_type)}: {a.summary}",
+        detail=a.description,
+        source_id=str(a.id),
+        user_name=a.user_name,
+        activity_type=a.activity_type,
+        **extra,
+    )
 
 
 def _inbound_messages(**filters) -> list[Entry]:
@@ -232,7 +238,7 @@ def _inbound_messages(**filters) -> list[Entry]:
     return out
 
 
-def _finish(dossier: Dossier, entries: list[Entry]) -> Dossier:
+def _finish(dossier: Dossier, entries: list[Entry], max_entries: int | None = MAX_ENTRIES) -> Dossier:
     # Sin repetidos (una actividad puede venir por presupuesto y por empresa).
     seen: set[tuple] = set()
     unique: list[Entry] = []
@@ -243,10 +249,11 @@ def _finish(dossier: Dossier, entries: list[Entry]) -> Dossier:
         seen.add(key)
         unique.append(e)
     unique.sort(key=lambda e: e.at)
-    if len(unique) > MAX_ENTRIES:
+    if max_entries is not None and len(unique) > max_entries:
         # Se conservan las altas de presupuesto (resumen de cada negocio) y lo más reciente.
         heads = [e for e in unique if e.kind == "presupuesto"]
-        rest = [e for e in unique if e.kind != "presupuesto"][-(MAX_ENTRIES - len(heads)) :]
+        rest = [e for e in unique if e.kind != "presupuesto"]
+        rest = rest[max(len(rest) - max(max_entries - len(heads), 0), 0) :]
         unique = sorted(heads + rest, key=lambda e: e.at)
         dossier.truncated = True
     titles = {o.id: o.title for o in dossier.opportunities}
@@ -271,7 +278,8 @@ def _finish(dossier: Dossier, entries: list[Entry]) -> Dossier:
     return dossier
 
 
-def build_for_company(company_id: UUID) -> Dossier:
+def build_for_company(company_id: UUID, max_entries: int | None = MAX_ENTRIES) -> Dossier:
+    """Expediente de una empresa. Con `max_entries=None` va completo (el historial comercial pagina aparte)."""
     company = CompanyService.get_company_by_id(company_id)
     contacts = ContactService.get_contacts(company_id=company_id, limit=100)
     opps = OpportunityService.get_opportunities(company_id=company_id, limit=200)
@@ -281,19 +289,41 @@ def build_for_company(company_id: UUID) -> Dossier:
     titles = {o.id: o.title for o in opps}
     for a in ActivityService.list_by_company(company_id):
         entries.append(
-            Entry(
-                kind="actividad",
-                at=_aware(a.activity_date),
-                title=f"{ACTIVITY_LABEL.get(a.activity_type.value, a.activity_type.value)}: {a.summary}",
-                detail=a.description,
+            _activity_entry(
+                a,
                 opportunity_id=a.opportunity_id,
                 opportunity_title=titles.get(a.opportunity_id) if a.opportunity_id else None,
-                source_id=str(a.id),
-                user_name=a.user_name,
             )
         )
     entries += _inbound_messages(company_id=company_id)
-    return _finish(Dossier(company=company, contacts=contacts, opportunities=opps), entries)
+    return _finish(Dossier(company=company, contacts=contacts, opportunities=opps), entries, max_entries)
+
+
+def build_for_contact(contact_id: UUID, max_entries: int | None = MAX_ENTRIES) -> Dossier:
+    """Expediente de un contacto: sus presupuestos (con etapas, versiones y actividades), lo que se
+    registró con él aunque no tenga presupuesto y los mensajes que mandó."""
+    contact = ContactService.get_contact_by_id(contact_id)
+    company = None
+    if contact.company_id:
+        try:
+            company = CompanyService.get_company_by_id(contact.company_id)
+        except HTTPException:
+            company = None
+    opps = OpportunityService.get_opportunities(contact_id=contact_id, limit=200)
+    entries: list[Entry] = []
+    for opp in opps:
+        entries += _opportunity_entries(opp)
+    titles = {o.id: o.title for o in opps}
+    for a in ActivityService.list_by_contact(contact_id):
+        entries.append(
+            _activity_entry(
+                a,
+                opportunity_id=a.opportunity_id,
+                opportunity_title=titles.get(a.opportunity_id) if a.opportunity_id else None,
+            )
+        )
+    entries += _inbound_messages(contact_id=contact_id)
+    return _finish(Dossier(company=company, contacts=[contact], opportunities=opps), entries, max_entries)
 
 
 def build_for_opportunity(opp: OpportunityResponse) -> Dossier:

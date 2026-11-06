@@ -67,6 +67,10 @@ class OpportunityBase(BaseModel):
         default=Decimal("0"), ge=0, le=100, description="Descuento general del presupuesto (%)"
     )
     current_version: int = Field(default=1, ge=1, description="Versión vigente de los materiales cotizados")
+    closed_at: datetime | None = Field(None, description="Fecha real de cierre (ganada o perdida)")
+    origin: str | None = Field(
+        None, max_length=100, description="Origen del presupuesto (precargado con el del cliente)"
+    )
 
 
 class OpportunityCreate(BaseModel):
@@ -82,6 +86,7 @@ class OpportunityCreate(BaseModel):
     expected_close_date: date | None = None
     delivery_location: str | None = None
     discount_pct: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    origin: str | None = Field(None, max_length=100, description="Si falta, se toma el origen del cliente")
     items: list[OpportunityItemCreate] = Field(default_factory=list, description="Lista de materiales presupuestados")
 
 
@@ -101,6 +106,10 @@ class OpportunityUpdate(BaseModel):
     items: list[OpportunityItemCreate] | None = None
     version_note: str | None = Field(
         None, max_length=500, description="Motivo del cambio de materiales (queda en la versión)"
+    )
+    origin: str | None = Field(None, max_length=100)
+    reopen_reason: str | None = Field(
+        None, max_length=500, description="Motivo para reabrir un presupuesto cerrado (queda en el historial)"
     )
 
 

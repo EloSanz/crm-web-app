@@ -3,8 +3,17 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
-from backend.controllers.permissions import MANAGER_ROLES, ensure_owner, owner_scope, require_roles
-from backend.database import get_supabase_client
+from backend.controllers.permissions import (
+    MANAGER_ROLES,
+    ensure_owner,
+    owner_scope,
+    require_roles,
+    session_from_header,
+)
+
+# Las etapas viven en stage_controller; se reexportan para no romper los imports existentes.
+from backend.controllers.stage_controller import list_stages  # noqa: F401
+from backend.controllers.stage_controller import router as stages_router  # noqa: F401
 from backend.models.opportunity import (
     OpportunityCreate,
     OpportunityResponse,
@@ -16,7 +25,17 @@ from backend.models.opportunity import (
 from backend.services.opportunity_service import OpportunityService
 
 router = APIRouter(prefix="/api/opportunities", tags=["Oportunidades / Presupuestos"])
-stages_router = APIRouter(prefix="/api/stages", tags=["Etapas del Embudo"])
+
+
+def _ensure_can_touch_closed(authorization: str | None, opp: OpportunityResponse) -> None:
+    """Regla 14: un presupuesto ganado o perdido sólo lo modifican o reabren admin y responsable comercial."""
+    if opp.status == OpportunityStatus.ABIERTA:
+        return
+    if session_from_header(authorization).get("role") not in MANAGER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El presupuesto está cerrado: sólo el administrador o el responsable comercial lo pueden modificar o reabrir.",
+        )
 
 
 def _extract_user_id(authorization: str | None) -> UUID | None:
@@ -40,12 +59,16 @@ def list_opportunities(
     contact_id: UUID | None = Query(None, description="Filtrar por contacto"),
     stage_id: UUID | None = Query(None, description="Filtrar por etapa"),
     status: OpportunityStatus | None = Query(None, description="Filtrar por estado"),
+    assigned_to: UUID | None = Query(None, description="Filtrar por responsable (sólo admin y responsable comercial)"),
+    origin: str | None = Query(None, max_length=100, description="Filtrar por origen del presupuesto"),
     q: str | None = Query(None, description="Búsqueda por título"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     authorization: str | None = Header(None),
 ) -> list[OpportunityResponse]:
     """Retorna los presupuestos activos ordenados cronológicamente. Cada vendedor ve sólo los suyos."""
+    # El vendedor queda siempre limitado a lo suyo: su filtro por responsable se ignora.
+    scope = owner_scope(authorization)
     return OpportunityService.get_opportunities(
         company_id=company_id,
         contact_id=contact_id,
@@ -54,7 +77,8 @@ def list_opportunities(
         q=q,
         limit=limit,
         offset=offset,
-        assigned_to=owner_scope(authorization),
+        assigned_to=scope or assigned_to,
+        origin=origin.strip() if origin and origin.strip() else None,
     )
 
 
@@ -125,6 +149,7 @@ def update_opportunity(
     user_id = _extract_user_id(authorization)
     current = OpportunityService.get_opportunity_by_id(opp_id)
     ensure_owner(authorization, current.assigned_to)
+    _ensure_can_touch_closed(authorization, current)
     if data.assigned_to is not None and str(current.assigned_to) != str(data.assigned_to):
         require_roles(authorization, MANAGER_ROLES)
     return OpportunityService.update_opportunity(opp_id, data, user_id=user_id)
@@ -137,83 +162,12 @@ def update_opportunity(
 )
 def delete_opportunity(opp_id: UUID, authorization: str | None = Header(None)):
     """Aplica baja lógica (Invariante 2)."""
-    ensure_owner(authorization, OpportunityService.get_opportunity_by_id(opp_id).assigned_to)
+    current = OpportunityService.get_opportunity_by_id(opp_id)
+    ensure_owner(authorization, current.assigned_to)
+    _ensure_can_touch_closed(authorization, current)
     success = OpportunityService.delete_opportunity(opp_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo dar de baja el presupuesto",
         )
-
-
-@stages_router.get(
-    "",
-    summary="Listar etapas del embudo comercial del corralón",
-)
-def list_stages():
-    """Retorna las 6 etapas ordenadas por posición."""
-    try:
-        client = get_supabase_client()
-        res = client.table("crm_stages").select("*").order("position").execute()
-        if res.data:
-            return res.data
-    except Exception:
-        pass
-
-    # Fallback con las 6 etapas de corralón
-    return [
-        {
-            "id": "11111111-0000-0000-0000-000000000001",
-            "name": "Consulta Recibida",
-            "slug": "consulta-recibida",
-            "position": 1,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#38bdf8",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000002",
-            "name": "Presupuesto en Preparación",
-            "slug": "presupuesto-preparacion",
-            "position": 2,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#818cf8",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000003",
-            "name": "Presupuesto Enviado",
-            "slug": "presupuesto-enviado",
-            "position": 3,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#fbbf24",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000004",
-            "name": "Negociación",
-            "slug": "negociacion",
-            "position": 4,
-            "is_closed_won": False,
-            "is_closed_lost": False,
-            "color": "#f97316",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000005",
-            "name": "Venta Concretada",
-            "slug": "venta-concretada",
-            "position": 5,
-            "is_closed_won": True,
-            "is_closed_lost": False,
-            "color": "#22c55e",
-        },
-        {
-            "id": "11111111-0000-0000-0000-000000000006",
-            "name": "Perdida",
-            "slug": "perdida",
-            "position": 6,
-            "is_closed_won": False,
-            "is_closed_lost": True,
-            "color": "#ef4444",
-        },
-    ]

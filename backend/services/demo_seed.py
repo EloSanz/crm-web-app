@@ -399,6 +399,8 @@ def seed(seed_value: int = 20260922) -> dict:
             "loss_reason": loss_reason,
             "discount_pct": float(discount_now),
             "current_version": version,
+            "closed_at": _iso(final[1]) if final else None,
+            "origin": company_service._mock_companies[company["id"]].get("origin"),
             "is_deleted": False,
             "deleted_at": None,
             "created_at": _iso(created),

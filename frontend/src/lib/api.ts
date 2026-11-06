@@ -17,6 +17,7 @@ import {
   ActivityAttachment,
   CrmUser,
   CrmUserFormData,
+  CrmUserCreateData,
   OpportunityVersion,
   TimelineEvent,
 } from '@/types/crm';
@@ -315,11 +316,16 @@ export async function fetchStages(): Promise<Stage[]> {
   return res.json();
 }
 
-export async function fetchOpportunities(params?: { 
-  company_id?: string; 
-  contact_id?: string; 
-  stage_id?: string; 
-  q?: string 
+export async function fetchOpportunities(params?: {
+  company_id?: string;
+  contact_id?: string;
+  stage_id?: string;
+  q?: string;
+  /** abierta | ganada | perdida */
+  status?: Opportunity['status'];
+  /** Sólo lo respeta para admin y responsable comercial; el vendedor ve siempre lo suyo. */
+  assigned_to?: string;
+  origin?: string;
 }): Promise<Opportunity[]> {
   const url = buildApiUrl('/api/opportunities', params);
   const res = await fetch(url, {
@@ -344,6 +350,16 @@ export async function fetchOpportunity(id: string): Promise<Opportunity> {
   return res.json();
 }
 
+/** El backend responde `detail` como texto (reglas de negocio) o como lista (validación de campos). */
+function errorDetail(err: { detail?: unknown }): string | undefined {
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail)) {
+    const first = err.detail[0] as { msg?: string } | undefined;
+    return first?.msg;
+  }
+  return undefined;
+}
+
 export async function createOpportunity(data: OpportunityCreateData): Promise<Opportunity> {
   const url = buildApiUrl('/api/opportunities');
   const res = await fetch(url, {
@@ -353,7 +369,7 @@ export async function createOpportunity(data: OpportunityCreateData): Promise<Op
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Error al generar presupuesto');
+    throw new Error(errorDetail(err) || 'Error al generar presupuesto');
   }
   return res.json();
 }
@@ -367,7 +383,7 @@ export async function updateOpportunity(id: string, data: OpportunityUpdateData)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Error al actualizar el presupuesto');
+    throw new Error(errorDetail(err) || 'Error al actualizar el presupuesto');
   }
   return res.json();
 }
@@ -532,22 +548,32 @@ export async function fetchUser(id: string): Promise<CrmUser> {
   return res.json();
 }
 
-export async function createUser(data: CrmUserFormData): Promise<CrmUser> {
+/** Mensaje del backend para mostrar en un toast (el detail de FastAPI puede venir como lista en un 422). */
+async function userApiError(res: Response, fallback: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  return new Error(typeof err.detail === 'string' && err.detail ? err.detail : fallback);
+}
+
+export async function createUser(data: CrmUserCreateData): Promise<CrmUser> {
   const res = await fetch(buildApiUrl('/api/users'), { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'No se pudo crear el usuario');
-  }
+  if (!res.ok) throw await userApiError(res, 'No se pudo crear el usuario');
   return res.json();
 }
 
 export async function updateUser(id: string, data: Partial<CrmUserFormData>): Promise<CrmUser> {
   const res = await fetch(buildApiUrl(`/api/users/${id}`), { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(data) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'No se pudo actualizar el usuario');
-  }
+  if (!res.ok) throw await userApiError(res, 'No se pudo actualizar el usuario');
   return res.json();
+}
+
+/** Sólo administrador: define una contraseña nueva para el usuario. */
+export async function resetUserPassword(id: string, password: string): Promise<void> {
+  const res = await fetch(buildApiUrl(`/api/users/${id}/password`), {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) throw await userApiError(res, 'No se pudo cambiar la contraseña');
 }
 
 // ---------------------------------------------------------------------------

@@ -6,11 +6,13 @@ from backend.controllers import (
     activity_controller,
     ai_controller,
     auth_controller,
+    catalog_controller,
     company_controller,
     contact_controller,
     dev_controller,
     gmail_controller,
     health_controller,
+    history_controller,
     message_controller,
     metrics_controller,
     opportunity_controller,
@@ -125,10 +127,12 @@ app.include_router(health_controller.router)
 app.include_router(auth_controller.router)
 app.include_router(company_controller.router)
 app.include_router(contact_controller.router)
+app.include_router(history_controller.router)
 app.include_router(project_controller.router)
 app.include_router(product_controller.router)
 app.include_router(opportunity_controller.router)
 app.include_router(opportunity_controller.stages_router)
+app.include_router(catalog_controller.router)
 app.include_router(upload_controller.router)
 app.include_router(user_controller.router)
 app.include_router(activity_controller.router)

@@ -146,6 +146,10 @@ export interface Opportunity {
   discount_pct?: number;
   /** Versión vigente de los materiales (sube con cada renegociación). */
   current_version?: number;
+  /** Fecha real de cierre (ganado o perdido); vuelve a null al reabrir. */
+  closed_at?: string | null;
+  /** Origen propio del presupuesto (se precarga con el del cliente). */
+  origin?: string | null;
   items: OpportunityItem[];
   // North Star Metric (NSM)
   last_activity_at?: string | null;
@@ -157,15 +161,19 @@ export interface Opportunity {
   updated_at: string;
 }
 
-export type ActivityType = 
-  | 'llamada' 
-  | 'whatsapp' 
-  | 'reunion' 
-  | 'visita_obra' 
-  | 'mostrador' 
-  | 'email' 
-  | 'nota' 
+/** Tipos que usa el sistema; el administrador puede sumar otros desde Configuración. */
+export type SystemActivityType =
+  | 'llamada'
+  | 'whatsapp'
+  | 'reunion'
+  | 'visita_obra'
+  | 'mostrador'
+  | 'email'
+  | 'nota'
   | 'presupuesto';
+
+/** Código de un tipo de actividad del catálogo (los de sistema o los que agregue el administrador). */
+export type ActivityType = SystemActivityType | (string & {});
 
 export interface ActivityAttachment {
   url: string;
@@ -256,6 +264,8 @@ export interface Stage {
   is_closed_won: boolean;
   is_closed_lost: boolean;
   color: string;
+  /** Baja lógica desde Configuración: las desactivadas no aparecen en el tablero ni en los selects. */
+  is_active?: boolean;
 }
 
 export type PriceTier = 'minorista' | 'mayorista' | 'manual';
@@ -314,6 +324,7 @@ export interface OpportunityCreateData {
   expected_close_date?: string | null;
   delivery_location?: string | null;
   discount_pct?: number;
+  origin?: string | null;
   items: OpportunityItemCreateData[];
 }
 
@@ -333,6 +344,9 @@ export interface OpportunityUpdateData {
   items?: OpportunityItemCreateData[];
   /** Motivo del cambio de materiales; queda guardado en la versión. */
   version_note?: string | null;
+  origin?: string | null;
+  /** Obligatorio para reabrir un presupuesto cerrado; queda en el historial. */
+  reopen_reason?: string | null;
 }
 
 
@@ -355,4 +369,9 @@ export interface CrmUserFormData {
   full_name: string;
   role: CrmRole;
   is_active: boolean;
+}
+
+/** Alta de usuario: el administrador define la contraseña inicial (no se guarda en el front). */
+export interface CrmUserCreateData extends CrmUserFormData {
+  password: string;
 }

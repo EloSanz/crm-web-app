@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { safeBackHref } from '@/components/contact/useLeaveGuard';
 import clsx from 'clsx';
-import { Check, MessageCircle, Pencil, Sparkles, Trophy, XCircle } from 'lucide-react';
+import { Check, Lock, MessageCircle, Pencil, RotateCcw, Sparkles, Trophy, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -17,6 +17,7 @@ import { VersionHistory } from '@/components/opportunities/VersionHistory';
 import { EmailThreads } from '@/components/opportunities/EmailThreads';
 import { ContactMenu } from '@/components/contact/ContactMenu';
 import { useStageTransitions } from '@/components/opportunities/useStageTransitions';
+import { ReopenDialog } from '@/components/opportunities/ReopenDialog';
 import {
   fetchCompany,
   fetchCompanyContacts,
@@ -33,6 +34,7 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/useUser';
 import { isManager } from '@/lib/roles';
+import { useCatalog } from '@/lib/useCatalogs';
 import type { Contact } from '@/types/crm';
 import { useLoad } from '@/lib/useLoad';
 import { healthOf } from '@/lib/health';
@@ -41,6 +43,7 @@ import { formatARS, formatDate, formatQty, sentenceCase, shortRef } from '@/lib/
 export default function OpportunityDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
+  const originLabels = useCatalog('origin').map((i) => i.label);
   // Al llegar desde una cita de «Ponete al día», volver lleva de nuevo al chat.
   const volver = useSearchParams()?.get('volver');
   const back = volver ? { href: safeBackHref(volver, '/opportunities'), label: volver.endsWith('/ponete-al-dia') ? 'Ponete al día' : 'Volver' } : { href: '/opportunities', label: 'Presupuestos' };
@@ -80,15 +83,32 @@ export default function OpportunityDetailPage() {
   const toast = useToast();
   const me = useCurrentUser();
   const canReassign = isManager(me);
+  const [reopening, setReopening] = useState(false);
+  const [reopenSubmitting, setReopenSubmitting] = useState(false);
 
-  const assign = async (field: 'assigned_to' | 'contact_id', value: string) => {
+  const assign = async (field: 'assigned_to' | 'contact_id' | 'origin', value: string) => {
     if (!data) return;
     try {
       await updateOpportunity(data.opp.id, { [field]: value || null });
-      toast.success(field === 'assigned_to' ? 'Responsable actualizado' : 'Punto de contacto actualizado');
+      toast.success(field === 'assigned_to' ? 'Responsable actualizado' : field === 'origin' ? 'Origen actualizado' : 'Punto de contacto actualizado');
       await reload();
     } catch (err) {
       toast.error('No se pudo guardar', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const reopen = async (stageId: string, reason: string) => {
+    if (!data) return;
+    setReopenSubmitting(true);
+    try {
+      await updateOpportunity(data.opp.id, { stage_id: stageId, status: 'abierta', reopen_reason: reason });
+      toast.success('Presupuesto reabierto', reason);
+      setReopening(false);
+      await reload();
+    } catch (err) {
+      toast.error('No se pudo reabrir', err instanceof Error ? err.message : undefined);
+    } finally {
+      setReopenSubmitting(false);
     }
   };
 
@@ -122,6 +142,8 @@ export default function OpportunityDetailPage() {
   const showVersions = () => document.getElementById('versiones')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const health = healthOf(opp);
   const isOpen = opp.status === 'abierta';
+  // Cerrado: el vendedor lo ve en solo lectura; admin y responsable comercial lo pueden tocar o reabrir.
+  const readOnly = !isOpen && !canReassign;
   const openStages = stages.filter((s) => !s.is_closed_won && !s.is_closed_lost);
   const currentIdx = openStages.findIndex((s) => s.id === opp.stage_id);
   const won = stages.find((s) => s.is_closed_won);
@@ -162,9 +184,32 @@ export default function OpportunityDetailPage() {
                   </Button>
                 )}
               </div>
+            ) : canReassign ? (
+              <Button variant="secundario" onClick={() => setReopening(true)}>
+                <RotateCcw className="w-4 h-4" aria-hidden />
+                Reabrir
+              </Button>
             ) : undefined
           }
         />
+
+        {!isOpen && (
+          <section aria-label="Presupuesto cerrado" className="flex items-start gap-3 rounded-2xl border border-linea bg-chapa-2 px-5 py-4">
+            <Lock className="mt-0.5 w-4.5 h-4.5 shrink-0 text-tiza" aria-hidden />
+            <div className="min-w-0 text-[15px] leading-snug">
+              <p className="font-semibold">
+                {opp.status === 'ganada' ? 'Venta concretada' : 'Perdido'}
+                {opp.closed_at ? ` el ${formatDate(opp.closed_at)}` : ''}
+                {opp.status === 'perdida' && opp.loss_reason ? ` · ${opp.loss_reason}` : ''}
+              </p>
+              <p className="text-sm text-tiza">
+                {readOnly
+                  ? 'Está cerrado: lo ves en solo lectura. Para cambiarlo, pedíselo al responsable comercial.'
+                  : 'Está cerrado. Lo que cambies queda registrado con tu nombre; para moverlo de etapa, reabrilo.'}
+              </p>
+            </div>
+          </section>
+        )}
 
         {isOpen && openStages.length > 0 && (
           <nav aria-label="Etapa del presupuesto">
@@ -241,6 +286,7 @@ export default function OpportunityDetailPage() {
                     id="punto-contacto"
                     value={opp.contact_id ?? ''}
                     onChange={(v) => v !== (opp.contact_id ?? '') && assign('contact_id', v)}
+                    disabled={readOnly}
                     placeholder="Sin contacto"
                     options={[{ value: '', label: 'Sin contacto' }, ...contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}`, hint: [c.job_title, c.phone].filter(Boolean).join(' · ') || undefined }))]}
                   />
@@ -261,7 +307,22 @@ export default function OpportunityDetailPage() {
                 <Datum label="Cierre estimado">{opp.expected_close_date ? formatDate(opp.expected_close_date) : '—'}</Datum>
                 <Datum label="Teléfono">{phone || '—'}</Datum>
                 <Datum label="Creado">{formatDate(opp.created_at)}</Datum>
-                {opp.status === 'perdida' && opp.loss_reason && <Datum label="Motivo">{opp.loss_reason}</Datum>}
+                <Datum label="Origen">
+                  {readOnly ? (
+                    opp.origin || '—'
+                  ) : (
+                    <Select
+                      size="sm"
+                      aria-label="Origen"
+                      value={opp.origin ?? ''}
+                      onChange={(v) => v !== (opp.origin ?? '') && assign('origin', v)}
+                      placeholder="Sin origen"
+                      options={[{ value: '', label: 'Sin origen' }, ...originOptions(originLabels, opp.origin).map((o) => ({ value: o, label: o }))]}
+                    />
+                  )}
+                </Datum>
+                {!isOpen && <Datum label="Fecha de cierre">{opp.closed_at ? formatDate(opp.closed_at) : '—'}</Datum>}
+                {opp.status === 'perdida' && <Datum label="Motivo de pérdida">{opp.loss_reason || '—'}</Datum>}
               </dl>
             </section>
 
@@ -330,8 +391,16 @@ export default function OpportunityDetailPage() {
         </div>
       </div>
       {dialogs}
+      {reopening && (
+        <ReopenDialog opp={opp} stages={openStages} submitting={reopenSubmitting} onCancel={() => setReopening(false)} onConfirm={reopen} />
+      )}
     </AppLayout>
   );
+}
+
+/** Orígenes del catálogo más el que ya tenga el presupuesto (si se cargó uno fuera de la lista o se desactivó). */
+function originOptions(labels: string[], current: string | null | undefined): string[] {
+  return current && !labels.includes(current) ? [...labels, current] : labels;
 }
 
 function Datum({ label, children }: { label: string; children: React.ReactNode }) {

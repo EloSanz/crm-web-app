@@ -41,7 +41,12 @@ def _stages() -> list[dict]:
 def _new_seller(client: TestClient, name: str) -> str:
     res = client.post(
         "/api/users",
-        json={"email": f"{name.lower().replace(' ', '.')}@crm.com", "full_name": name, "role": "ejecutivo_ventas"},
+        json={
+            "email": f"{name.lower().replace(' ', '.')}@crm.com",
+            "full_name": name,
+            "role": "ejecutivo_ventas",
+            "password": "vendedor-2026",
+        },
     )
     assert res.status_code == 201
     return res.json()["id"]
@@ -49,19 +54,24 @@ def _new_seller(client: TestClient, name: str) -> str:
 
 def _new_opportunity(client: TestClient, seller_id: str, stage_id: str, **extra) -> dict:
     comp = client.post("/api/companies", json={"name": f"Indicadores {datetime.now().timestamp()}"}).json()
+    # Un presupuesto nuevo arranca abierto: si se pide uno cerrado, se da de alta y se cierra en la base local.
+    closed_status = extra.pop("status", None)
     res = client.post(
         "/api/opportunities",
         json={
             "title": extra.pop("title", "Presupuesto para indicadores"),
             "company_id": comp["id"],
             "assigned_to": seller_id,
-            "stage_id": stage_id,
+            "stage_id": stage_id if not closed_status else _stages()[0]["id"],
             "estimated_value": extra.pop("estimated_value", 500000.0),
             **extra,
         },
     )
     assert res.status_code == 201
     opp = res.json()
+    if closed_status:
+        _mock_opportunities[opp["id"]].update(stage_id=stage_id, status=closed_status)
+        opp.update(stage_id=stage_id, status=closed_status)
     # El historial lo sembramos a mano con fechas pasadas: se descarta lo que haya registrado el alta.
     for key in [k for k, row in _mock_stage_history.items() if row["opportunity_id"] == opp["id"]]:
         del _mock_stage_history[key]

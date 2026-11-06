@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     CRM_API_KEY: str = "crm_live_corralon_secret_key_2026"
+    # Usuarios demo con contraseña en el código (admin@crm.com/admin123, etc.). En modo local siempre andan;
+    # con Supabase sólo si esto es true. Apagarlo en producción cuando existan las cuentas reales de Supabase Auth.
+    ALLOW_DEMO_LOGIN: bool = False
 
     # Frontend URL (CORS)
     FRONTEND_URL: str = "http://localhost:3000"

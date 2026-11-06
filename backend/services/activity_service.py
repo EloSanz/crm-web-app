@@ -99,14 +99,14 @@ class ActivityService:
         return acts
 
     @classmethod
-    def list_by_company(cls, company_id: UUID) -> list[ActivityResponse]:
-        """Actividades registradas con la empresa (con o sin presupuesto), del más nuevo al más viejo."""
+    def _list_by(cls, column: str, value: UUID) -> list[ActivityResponse]:
+        """Actividades con `column` = value (con o sin presupuesto), del más nuevo al más viejo."""
         try:
             client = get_supabase_client()
             res = (
                 client.table("crm_activities")
                 .select("*")
-                .eq("company_id", str(company_id))
+                .eq(column, str(value))
                 .order("activity_date", desc=True)
                 .limit(500)
                 .execute()
@@ -119,10 +119,20 @@ class ActivityService:
                     out.append(ActivityResponse(**_with_attachments(item)))
                 return out
         except Exception as e:
-            logger.warning(f"Error consultando crm_activities por empresa en Supabase: {e}")
-        acts = [ActivityResponse(**a) for a in _mock_activities.values() if str(a.get("company_id")) == str(company_id)]
+            logger.warning(f"Error consultando crm_activities por {column} en Supabase: {e}")
+        acts = [ActivityResponse(**a) for a in _mock_activities.values() if str(a.get(column)) == str(value)]
         acts.sort(key=lambda a: (_aware(a.activity_date), _aware(a.created_at)), reverse=True)
         return acts
+
+    @classmethod
+    def list_by_company(cls, company_id: UUID) -> list[ActivityResponse]:
+        """Actividades registradas con la empresa (con o sin presupuesto), del más nuevo al más viejo."""
+        return cls._list_by("company_id", company_id)
+
+    @classmethod
+    def list_by_contact(cls, contact_id: UUID) -> list[ActivityResponse]:
+        """Actividades registradas con el contacto (con o sin presupuesto), del más nuevo al más viejo."""
+        return cls._list_by("contact_id", contact_id)
 
     @classmethod
     def create_activity(cls, data: ActivityCreate, user_id: UUID | None = None) -> ActivityResponse:
@@ -137,7 +147,7 @@ class ActivityService:
             "contact_id": str(data.contact_id) if data.contact_id else None,
             "company_id": str(data.company_id) if data.company_id else None,
             "user_id": str(actual_user_id),
-            "activity_type": data.activity_type.value,
+            "activity_type": data.activity_type,
             "summary": data.summary.strip(),
             "description": data.description.strip() if data.description else None,
             "activity_date": _aware(data.activity_date).isoformat(),
