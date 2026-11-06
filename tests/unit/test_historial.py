@@ -195,7 +195,13 @@ def test_seller_assigned_to_the_contact_or_its_company_gets_200(client: TestClie
     assert seller.get(f"/api/companies/{company['id']}/history").status_code == 200
     assert seller.get(f"/api/contacts/{via_company['id']}/history").status_code == 200
     assert seller.get(f"/api/contacts/{own['id']}/history").status_code == 200
-    assert seller.get(f"/api/contacts/{alien['id']}/history").status_code == 403
+    # Sin responsable ni presupuestos de nadie: es cartera libre y la ve cualquier vendedor.
+    assert seller.get(f"/api/contacts/{alien['id']}/history").status_code == 200
+    # Asignado a otro vendedor: no.
+    other = client.post(
+        "/api/contacts", json={"first_name": "Eva", "last_name": "Ajena", "assigned_to": OTRO_ID}
+    ).json()
+    assert seller.get(f"/api/contacts/{other['id']}/history").status_code == 403
 
 
 def test_commercial_manager_sees_any_client(client: TestClient):

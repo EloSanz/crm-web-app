@@ -1,5 +1,6 @@
 'use client';
 
+import { AssigneeName } from '@/components/clients/AssigneeField';
 import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -79,6 +80,7 @@ export default function CompanyDetailPage() {
               <InfoRow label="Rubro">{c.industry || <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="Sitio web">{c.website ? <a href={c.website.startsWith('http') ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" className="break-all hover:underline">{c.website}</a> : <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="Origen">{c.origin || <span className="text-tiza">—</span>}</InfoRow>
+              <InfoRow label="Responsable"><AssigneeName userId={c.assigned_to} /></InfoRow>
               <InfoRow label="Notas">{c.notes ? <span className="whitespace-pre-line">{c.notes}</span> : <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="Alta">{formatDate(c.created_at)}</InfoRow>
             </dl>

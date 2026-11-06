@@ -1,6 +1,6 @@
 import type { Product } from '@/types/crm';
 import type { CatalogAuditEntry, CatalogAuditQuery } from '@/types/catalog';
-import { buildApiUrl, getAuthHeaders } from './api';
+import { LIST_LIMIT, buildApiUrl, getAuthHeaders } from './api';
 
 async function errorDetail(res: Response, fallback: string): Promise<string> {
   const err = await res.json().catch(() => ({}));
@@ -24,7 +24,7 @@ export async function fetchCatalogAudit(params: CatalogAuditQuery = {}): Promise
 /** Todos los materiales vigentes, habilitados o no (el listado común trae sólo los habilitados). */
 export async function fetchAllMaterials(): Promise<Product[]> {
   const load = async (active: boolean): Promise<Product[]> => {
-    const res = await fetch(buildApiUrl('/api/products', { is_active: String(active), limit: '500' }), {
+    const res = await fetch(buildApiUrl('/api/products', { is_active: String(active), limit: LIST_LIMIT }), {
       headers: getAuthHeaders(),
       cache: 'no-store',
     });

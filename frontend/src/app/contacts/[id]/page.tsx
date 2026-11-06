@@ -1,5 +1,6 @@
 'use client';
 
+import { AssigneeName } from '@/components/clients/AssigneeField';
 import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -80,6 +81,7 @@ export default function ContactDetailPage() {
               <InfoRow label="Correo">{c.email ? <a href={`mailto:${c.email}`} className="break-all hover:underline">{c.email}</a> : <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="DNI">{c.document_number ? <span className="cifra">{c.document_number}</span> : <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="Origen">{c.origin || <span className="text-tiza">—</span>}</InfoRow>
+              <InfoRow label="Responsable"><AssigneeName userId={c.assigned_to} /></InfoRow>
               <InfoRow label="Notas">{c.notes ? <span className="whitespace-pre-line">{c.notes}</span> : <span className="text-tiza">—</span>}</InfoRow>
               <InfoRow label="Alta">{formatDate(c.created_at)}</InfoRow>
             </dl>

@@ -117,3 +117,40 @@ export function isValidCuit(value: string): boolean {
   const expected = check === 11 ? 0 : check;
   return expected !== 10 && expected === Number(d[10]);
 }
+
+/**
+ * Teléfono mientras se escribe: sólo dígitos, máximo 10 (formato local, sin código de país).
+ * Si viene con código de país, 0 o 15 (un número pegado o uno ya cargado como +54 9 11 4843-9238),
+ * se pasa a formato local en vez de cortarlo: así no se pierden los últimos dígitos.
+ */
+export function formatPhone(value: string): string {
+  let digits = value.replace(/\D/g, '');
+  if (digits.length > 10) {
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.startsWith('54') && digits.length > 10) {
+      digits = digits.slice(2);
+      if (digits.startsWith('9') && digits.length === 11) digits = digits.slice(1);
+    }
+    digits = digits.replace(/^0+/, '');
+    if (digits.length === 12) {
+      for (const area of [2, 3, 4]) {
+        if (digits.slice(area, area + 2) === '15') {
+          digits = digits.slice(0, area) + digits.slice(area + 2);
+          break;
+        }
+      }
+    }
+  }
+  return digits.slice(0, 10);
+}
+
+/** DNI mientras se escribe: sólo dígitos, máximo 8 (los más viejos tienen 7). */
+export function formatDni(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 8);
+}
+
+/** DNI válido: 7 u 8 dígitos. */
+export function isValidDni(value: string): boolean {
+  const n = value.replace(/\D/g, '').length;
+  return n === 7 || n === 8;
+}

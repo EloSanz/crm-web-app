@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createColumnHelper } from '@tanstack/react-table';
 import { History, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -10,12 +11,15 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/Field';
 import { Menu } from '@/components/ui/Menu';
 import { FilterChips } from '@/components/ui/FilterChips';
+import { CellActions, DataTable, type TableSetup } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import type { Product, ProductCategory } from '@/types/crm';
 import { deleteProduct, fetchProducts } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
+import { usePagination } from '@/lib/usePagination';
 import { PRODUCT_CATEGORIES } from '@/lib/catalogs';
 import { formatARSCents } from '@/lib/format';
 import { formatUnitQty, hasWholesale } from '@/lib/pricing';
@@ -23,6 +27,10 @@ import { useCurrentUser } from '@/lib/useUser';
 import { isAdmin } from '@/lib/roles';
 
 type Filter = 'all' | ProductCategory;
+const helper = createColumnHelper<TableSetup, Product>();
+const CATEGORY_POSITION = new Map(PRODUCT_CATEGORIES.map((c, i) => [c.value, i]));
+const CATEGORY_LABEL = new Map(PRODUCT_CATEGORIES.map((c) => [c.value as string, c.label]));
+const categoryPosition = (p: Product) => CATEGORY_POSITION.get(p.category) ?? PRODUCT_CATEGORIES.length;
 
 export default function CatalogPage() {
   const router = useRouter();
@@ -35,15 +43,85 @@ export default function CatalogPage() {
   const [busy, setBusy] = useState(false);
 
   const products = useMemo(() => data ?? [], [data]);
-  const groups = useMemo(() => {
+  // Filtrados y ordenados por rubro (en el orden del catálogo) y nombre: es el orden de la tabla
+  // sin tocar encabezados y el de la lista del celular.
+  const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const match = products.filter(
-      (p) => (filter === 'all' || p.category === filter) && (!q || [p.name, p.code, p.description].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)))
-    );
-    return PRODUCT_CATEGORIES.map((c) => ({ ...c, items: match.filter((p) => p.category === c.value).sort((a, b) => a.name.localeCompare(b.name, 'es')) })).filter(
-      (g) => g.items.length
-    );
+    return products
+      .filter((p) => (filter === 'all' || p.category === filter) && (!q || [p.name, p.code, p.description].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))))
+      .sort((a, b) => categoryPosition(a) - categoryPosition(b) || a.name.localeCompare(b.name, 'es'));
   }, [products, search, filter]);
+  const resetKey = `${search}|${filter}`;
+  const paged = usePagination(sorted, { resetKey });
+  const listRef = useRef<HTMLDivElement>(null);
+  // Los 10 de la página, agrupados por rubro para el celular.
+  const pageGroups = PRODUCT_CATEGORIES.map((c) => ({ ...c, items: paged.pageItems.filter((p) => p.category === c.value) })).filter((g) => g.items.length);
+
+  const actions = (p: Product) => (
+    <Menu
+      label={`Acciones de ${p.name}`}
+      items={[
+        { label: 'Editar', icon: <Pencil className="w-4 h-4" />, onSelect: () => router.push(`/catalog/${p.id}/editar`) },
+        { label: 'Dar de baja', icon: <Trash2 className="w-4 h-4" />, tone: 'peligro', onSelect: () => setDeleting(p) },
+      ]}
+    />
+  );
+
+  const columns = helper.columns([
+    helper.accessor('code', {
+      header: 'Código',
+      sortFn: 'alphanumeric',
+      cell: (info) => <span className="cifra whitespace-nowrap text-[13px] font-bold text-tiza">{info.getValue()}</span>,
+    }),
+    helper.accessor('name', {
+      header: 'Material',
+      sortFn: 'text',
+      // Hasta dos renglones: el nombre del material es lo que más importa en la fila.
+      cell: (info) => (
+        <span className="line-clamp-2 min-w-[11rem] font-semibold leading-snug" title={info.getValue()}>
+          {info.getValue()}
+        </span>
+      ),
+    }),
+    helper.accessor(categoryPosition, {
+      id: 'rubro',
+      header: 'Rubro',
+      sortFn: 'basic',
+      cell: (info) => <span className="whitespace-nowrap text-sm">{CATEGORY_LABEL.get(info.row.original.category) ?? info.row.original.category}</span>,
+    }),
+    helper.accessor('unit', {
+      header: 'Unidad',
+      sortFn: 'text',
+      cell: (info) => <span className="whitespace-nowrap text-sm">{info.getValue()}</span>,
+    }),
+    helper.accessor((p) => Number(p.unit_price) || 0, {
+      id: 'minorista',
+      header: 'Minorista',
+      sortFn: 'basic',
+      cell: (info) => <span className="cifra whitespace-nowrap font-extrabold">{formatARSCents(info.row.original.unit_price)}</span>,
+    }),
+    helper.accessor((p) => (hasWholesale(p) ? Number(p.wholesale_price) : -1), {
+      id: 'mayorista',
+      header: 'Mayorista',
+      sortFn: 'basic',
+      cell: (info) =>
+        hasWholesale(info.row.original) ? (
+          <span className="cifra whitespace-nowrap font-semibold">{formatARSCents(info.row.original.wholesale_price)}</span>
+        ) : (
+          <span className="text-sm text-tiza">—</span>
+        ),
+    }),
+    helper.accessor((p) => (hasWholesale(p) ? Number(p.wholesale_min_qty) : -1), {
+      id: 'minimo',
+      header: 'Mayorista desde',
+      sortFn: 'basic',
+      cell: (info) => {
+        const p = info.row.original;
+        return hasWholesale(p) ? <span className="cifra whitespace-nowrap text-sm">{formatUnitQty(p.wholesale_min_qty ?? 0, p.unit)}</span> : <span className="text-sm text-tiza">—</span>;
+      },
+    }),
+    helper.display({ id: 'acciones', header: () => <span className="sr-only">Acciones</span>, cell: (info) => <CellActions>{actions(info.row.original)}</CellActions> }),
+  ]);
 
   const remove = async () => {
     if (!deleting) return;
@@ -103,46 +181,58 @@ export default function CatalogPage() {
           <LoadingBlock label="Cargando catálogo" />
         ) : error ? (
           <EmptyState illustration="catalogo" title="No pudimos cargar el catálogo" description={error} action={<Button variant="secundario" onClick={() => reload()}>Reintentar</Button>} />
-        ) : groups.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <EmptyState illustration="catalogo" title={products.length ? 'Sin resultados' : 'El catálogo está vacío'} />
         ) : (
-          <div className="space-y-6">
-            {groups.map((g) => (
-              <section key={g.value} aria-labelledby={`rubro-${g.value}`}>
-                <h2 id={`rubro-${g.value}`} className="mb-2 px-1 text-[15px] font-bold">
-                  {g.label}
-                </h2>
-                <ul className="divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
-                  {g.items.map((p) => (
-                    <li key={p.id} className="relative flex flex-wrap items-center gap-x-3 px-4 py-3 transition-colors hover:bg-chapa-2/70 sm:flex-nowrap sm:gap-x-4 sm:px-5">
-                      <span className="cifra hidden w-20 shrink-0 text-[13px] font-bold text-tiza sm:block">{p.code}</span>
-                      <div className="min-w-0 flex-1">
-                        <Link href={`/catalog/${p.id}/editar`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0 focus-visible:outline-none">
-                          {p.name}
-                        </Link>
-                        <p className="truncate text-[13px] text-tiza">
-                          <span className="sm:hidden">{p.code} · </span>
-                          {p.unit}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="cifra text-[15px] font-extrabold">{formatARSCents(p.unit_price)}</p>
-                        {hasWholesale(p) && <WholesaleLine product={p} className="hidden sm:block" />}
-                      </div>
-                      <Menu
-                        label={`Acciones de ${p.name}`}
-                        items={[
-                          { label: 'Editar', icon: <Pencil className="w-4 h-4" />, onSelect: () => router.push(`/catalog/${p.id}/editar`) },
-                          { label: 'Dar de baja', icon: <Trash2 className="w-4 h-4" />, tone: 'peligro', onSelect: () => setDeleting(p) },
-                        ]}
-                      />
-                      {hasWholesale(p) && <WholesaleLine product={p} className="basis-full pr-[52px] text-right sm:hidden" />}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
+          <>
+            {/* Celular y tablet: lista compacta agrupada por rubro dentro de cada página de 10. */}
+            <div ref={listRef} className="scroll-mt-24 space-y-5 xl:hidden">
+              {pageGroups.map((g) => (
+                <section key={g.value} aria-labelledby={`rubro-${g.value}`}>
+                  <h2 id={`rubro-${g.value}`} className="mb-2 px-1 text-[15px] font-bold">
+                    {g.label}
+                  </h2>
+                  <ul className="divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
+                    {g.items.map((p) => (
+                      <li key={p.id} className="relative flex flex-wrap items-center gap-x-3 px-4 py-3 transition-colors hover:bg-chapa-2/70 sm:flex-nowrap sm:gap-x-4 sm:px-5">
+                        <span className="cifra hidden w-20 shrink-0 text-[13px] font-bold text-tiza sm:block">{p.code}</span>
+                        <div className="min-w-0 flex-1">
+                          <Link href={`/catalog/${p.id}/editar`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0 focus-visible:outline-none">
+                            {p.name}
+                          </Link>
+                          <p className="truncate text-[13px] text-tiza">
+                            <span className="sm:hidden">{p.code} · </span>
+                            {p.unit}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="cifra text-[15px] font-extrabold">{formatARSCents(p.unit_price)}</p>
+                          {hasWholesale(p) && <WholesaleLine product={p} className="hidden sm:block" />}
+                        </div>
+                        {actions(p)}
+                        {hasWholesale(p) && <WholesaleLine product={p} className="basis-full pr-[52px] text-right sm:hidden" />}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="px-1" />
+            </div>
+            {/* Escritorio: tabla ordenable por columna. */}
+            <div className="hidden xl:block">
+              <DataTable
+                data={sorted}
+                columns={columns}
+                caption="Catálogo de materiales"
+                dense
+                grow="name"
+                alignRight={['minorista', 'mayorista', 'minimo']}
+                resetKey={resetKey}
+                onRowClick={(p) => router.push(`/catalog/${p.id}/editar`)}
+                rowLabel={(p) => `Editar ${p.name}`}
+              />
+            </div>
+          </>
         )}
       </div>
       {deleting && (

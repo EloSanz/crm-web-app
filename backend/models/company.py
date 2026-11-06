@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.models.validators import validate_phone
+
 
 class CompanyStatus(str, Enum):
     POTENCIAL = "potencial"
@@ -38,6 +40,7 @@ class CompanyBase(BaseModel):
     assigned_to: UUID | None = Field(None, description="ID del ejecutivo comercial responsable")
 
     _cuit = field_validator("cuit")(format_cuit)
+    _phone = field_validator("phone")(validate_phone)
 
 
 class CompanyCreate(CompanyBase):
@@ -58,6 +61,7 @@ class CompanyUpdate(BaseModel):
     assigned_to: UUID | None = None
 
     _cuit = field_validator("cuit")(format_cuit)
+    _phone = field_validator("phone")(validate_phone)
 
 
 class CompanyResponse(CompanyBase):

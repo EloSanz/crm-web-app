@@ -10,7 +10,10 @@ import { FormActions, FormCard } from '@/components/ui/FormActions';
 import { useToast } from '@/components/ui/Toast';
 import { CLIENT_STATUS } from '@/lib/catalogs';
 import { useCatalog, withCurrent } from '@/lib/useCatalogs';
-import { formatCuit, isValidCuit } from '@/lib/format';
+import { useCurrentUser } from '@/lib/useUser';
+import { isManager } from '@/lib/roles';
+import { AssigneeField } from './AssigneeField';
+import { formatCuit, formatPhone, isValidCuit } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as CompanyStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
 
@@ -33,7 +36,9 @@ export function CompanyForm({ company }: { company?: Company | null }) {
     status: company?.status ?? 'potencial',
     origin: company?.origin ?? '',
     notes: company?.notes ?? '',
+    assigned_to: company?.assigned_to ?? '',
   });
+  const manager = isManager(useCurrentUser());
   const set = <K extends keyof CompanyFormData>(k: K, v: CompanyFormData[K]) => setData((d) => ({ ...d, [k]: v }));
 
   const submit = async (e: React.FormEvent) => {
@@ -43,7 +48,9 @@ export function CompanyForm({ company }: { company?: Company | null }) {
     if (cuitMsg) return setCuitError(cuitMsg);
     setSaving(true);
     try {
-      const payload = { ...data, origin: data.origin || origins[0]?.value };
+      // El responsable sólo lo mandan los managers (el backend lo exige); vacío = cartera libre.
+      const { assigned_to, ...rest } = data;
+      const payload = { ...rest, origin: data.origin || origins[0]?.value, ...(manager ? { assigned_to: assigned_to || null } : {}) };
       const saved = company ? await updateCompany(company.id, payload) : await createCompany(payload);
       toast.success(company ? 'Cambios guardados' : 'Empresa registrada', data.name);
       router.push(`/companies/${saved.id ?? company?.id}`);
@@ -88,10 +95,31 @@ export function CompanyForm({ company }: { company?: Company | null }) {
           {({ id }) => <Input id={id} value={data.industry || ''} onChange={(e) => set('industry', e.target.value)} placeholder="Estructuras, viviendas" />}
         </Field>
         <Field label="Teléfono">
-          {({ id }) => <Input id={id} type="tel" inputMode="tel" value={data.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+54 11 4455-6677" />}
+          {({ id }) => (
+            <Input
+              id={id}
+              type="tel"
+              inputMode="tel"
+              maxLength={10}
+              value={data.phone || ''}
+              onChange={(e) => set('phone', formatPhone(e.target.value))}
+              placeholder="11 4455-6677"
+            />
+          )}
         </Field>
         <Field label="Correo">
           {({ id }) => <Input id={id} type="email" value={data.email || ''} onChange={(e) => set('email', e.target.value)} placeholder="compras@empresa.com" />}
+        </Field>
+        <Field label="Sitio web">
+          {({ id }) => (
+            <Input
+              id={id}
+              type="url"
+              value={data.website || ''}
+              onChange={(e) => set('website', e.target.value)}
+              placeholder="https://www.empresa.com"
+            />
+          )}
         </Field>
         <Field label="Dirección" className="sm:col-span-2">
           {({ id }) => <Input id={id} value={data.address || ''} onChange={(e) => set('address', e.target.value)} placeholder="Av. Rivadavia 1200, Morón" />}
@@ -102,6 +130,7 @@ export function CompanyForm({ company }: { company?: Company | null }) {
         <Field label="Origen">
           {({ id }) => <Select id={id} value={data.origin || origins[0]?.value || ''} onChange={(v) => set('origin', v)} options={origins} />}
         </Field>
+        <AssigneeField value={data.assigned_to ?? ''} onChange={(v) => set('assigned_to', v)} creating={!company} />
         <Field label="Notas" className="sm:col-span-2">
           {({ id }) => <Textarea id={id} rows={3} value={data.notes || ''} onChange={(e) => set('notes', e.target.value)} />}
         </Field>

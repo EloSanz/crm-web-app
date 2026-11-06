@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
+from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.controllers.permissions import require_roles, session_from_header, session_user_id
 from backend.models.product import (
     CatalogAuditEntry,
@@ -33,7 +34,7 @@ def list_products(
     category: ProductCategory | None = Query(None, description="Filtrar por rubro de materiales"),
     q: str | None = Query(None, description="Búsqueda por código o descripción"),
     is_active: bool | None = Query(True, description="Solo materiales habilitados"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(LIST_DEFAULT_LIMIT, ge=1, le=LIST_MAX_LIMIT),
     offset: int = Query(0, ge=0),
 ) -> list[ProductResponse]:
     """Retorna los materiales del catálogo disponibles para presupuestar."""

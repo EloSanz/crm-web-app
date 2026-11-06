@@ -40,6 +40,8 @@ export interface CompanyFormData {
   status: CompanyStatus;
   origin?: string;
   notes?: string;
+  /** Responsable del cliente: sólo lo mandan admin y responsable comercial. */
+  assigned_to?: string | null;
 }
 
 export interface Contact {
@@ -74,6 +76,8 @@ export interface ContactFormData {
   status: ContactStatus;
   origin?: string;
   notes?: string;
+  /** Responsable del cliente: sólo lo mandan admin y responsable comercial. */
+  assigned_to?: string | null;
 }
 
 export interface Product {

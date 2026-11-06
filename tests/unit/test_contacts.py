@@ -18,7 +18,7 @@ def test_create_and_get_contact_with_company(client: TestClient):
         "company_id": company_id,
         "job_title": "Maestro Mayor de Obra",
         "email": "carlos.gutierrez@obras.com",
-        "phone": "+54 9 11 5566-7788",
+        "phone": "11 5566-7788",
         "status": "cliente",
         "origin": "Recomendación de otro contratista",
     }
@@ -108,3 +108,43 @@ def test_contact_with_invalid_company_fails(client: TestClient):
         },
     )
     assert res.status_code == 404
+
+
+def test_phone_with_country_code_is_saved_in_local_format(client):
+    """Los teléfonos ya cargados como +54 9 11 … (13 dígitos) se siguen pudiendo guardar."""
+    res = client.post(
+        "/api/contacts",
+        json={"first_name": "Carla", "last_name": "Ríos", "phone": "+54 9 11 4843-9238"},
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["phone"] == "+54 9 11 4843-9238"
+    other = client.post("/api/contacts", json={"first_name": "Dante", "last_name": "Sol", "phone": "011 15 4321-8765"})
+    assert other.status_code == 201, other.text
+    assert other.json()["phone"] == "011 15 4321-8765"
+
+
+def test_phone_too_long_is_rejected(client):
+    res = client.post("/api/contacts", json={"first_name": "Eva", "last_name": "Luz", "phone": "1234567890123"})
+    assert res.status_code == 422
+
+
+def test_dni_accepts_seven_or_eight_digits(client):
+    ok7 = client.post("/api/contacts", json={"first_name": "Ana", "last_name": "Vieja", "document_number": "5.123.456"})
+    assert ok7.status_code == 201, ok7.text
+    ok8 = client.post(
+        "/api/contacts", json={"first_name": "Ana", "last_name": "Nueva", "document_number": "40.123.456"}
+    )
+    assert ok8.status_code == 201, ok8.text
+    bad = client.post("/api/contacts", json={"first_name": "Ana", "last_name": "Mal", "document_number": "123"})
+    assert bad.status_code == 422
+
+
+def test_duplicate_message_does_not_leak_other_contact_name(client):
+    client.post(
+        "/api/contacts", json={"first_name": "Secreto", "last_name": "Privado", "email": "unico.dup@obra.com.ar"}
+    )
+    res = client.post(
+        "/api/contacts", json={"first_name": "Otro", "last_name": "Cliente", "email": "unico.dup@obra.com.ar"}
+    )
+    assert res.status_code == 409
+    assert "Secreto" not in res.json()["detail"] and "Privado" not in res.json()["detail"]

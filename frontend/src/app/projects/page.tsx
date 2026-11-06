@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createColumnHelper } from '@tanstack/react-table';
 import { ClipboardList, MapPin, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -12,16 +13,20 @@ import { Select } from '@/components/ui/Select';
 import { Chip } from '@/components/ui/Chip';
 import { Menu } from '@/components/ui/Menu';
 import { FilterChips } from '@/components/ui/FilterChips';
+import { CellActions, DataTable, type TableSetup } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import type { Project, ProjectStatus, ProjectType } from '@/types/crm';
 import { deleteProject, fetchProjects } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
+import { usePagination } from '@/lib/usePagination';
 import { PROJECT_STATUS, PROJECT_TYPES } from '@/lib/catalogs';
 
 type Filter = 'all' | ProjectStatus;
 const ORDER: ProjectStatus[] = ['en_curso', 'planificacion', 'frenada', 'finalizada'];
+const helper = createColumnHelper<TableSetup, Project>();
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -45,6 +50,65 @@ export default function ProjectsPage() {
       )
       .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
   }, [projects, search, filter, type]);
+  const resetKey = `${search}|${filter}|${type}`;
+  const paged = usePagination(filtered, { resetKey });
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const actions = (p: Project) => (
+    <Menu
+      label={`Acciones de ${p.name}`}
+      items={[
+        { label: 'Editar', icon: <Pencil className="w-4 h-4" />, onSelect: () => router.push(`/projects/${p.id}/editar`) },
+        { label: 'Dar de baja', icon: <Trash2 className="w-4 h-4" />, tone: 'peligro', onSelect: () => setDeleting(p) },
+      ]}
+    />
+  );
+
+  const columns = helper.columns([
+    helper.accessor('name', {
+      header: 'Obra',
+      sortFn: 'text',
+      cell: (info) => (
+        <p className="min-w-0 truncate leading-tight">
+          <span className="font-bold">{info.getValue()}</span>
+          <span className="text-sm text-tiza"> · {info.row.original.company_name || info.row.original.contact_name || 'Particular'}</span>
+        </p>
+      ),
+    }),
+    helper.accessor('address', {
+      header: 'Dirección',
+      sortFn: 'text',
+      cell: (info) => <span className="block max-w-64 truncate text-sm">{info.getValue()}</span>,
+    }),
+    helper.accessor((p) => PROJECT_TYPES[p.project_type] ?? p.project_type, {
+      id: 'tipo',
+      header: 'Tipo',
+      sortFn: 'text',
+      cell: (info) => <span className="whitespace-nowrap text-sm">{info.getValue()}</span>,
+    }),
+    helper.accessor((p) => ORDER.indexOf(p.status), {
+      id: 'estado',
+      header: 'Estado',
+      sortFn: 'basic',
+      cell: (info) => {
+        const st = PROJECT_STATUS[info.row.original.status] ?? PROJECT_STATUS.en_curso;
+        return <Chip tone={st.tone}>{st.label}</Chip>;
+      },
+    }),
+    helper.display({
+      id: 'acciones',
+      header: () => <span className="sr-only">Acciones</span>,
+      cell: (info) => (
+        <CellActions>
+          <ButtonLink href={`/opportunities/nuevo?project_id=${info.row.original.id}`} size="sm" variant="secundario">
+            <ClipboardList className="w-4 h-4" aria-hidden />
+            Presupuestar
+          </ButtonLink>
+          {actions(info.row.original)}
+        </CellActions>
+      ),
+    }),
+  ]);
 
   const remove = async () => {
     if (!deleting) return;
@@ -120,44 +184,56 @@ export default function ProjectsPage() {
             }
           />
         ) : (
-          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {filtered.map((p) => {
-              const st = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.en_curso;
-              return (
-                <li key={p.id} className="flex min-w-0 flex-col rounded-2xl border border-linea bg-chapa shadow-suave">
-                  <div className="flex-1 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="min-w-0 flex-1">
-                        <Link href={`/projects/${p.id}/editar`} className="block truncate text-base font-bold hover:underline">
-                          {p.name}
-                        </Link>
-                        <p className="truncate text-sm text-tiza">{p.company_name || 'Particular'}</p>
+          <>
+            <div ref={listRef} className="scroll-mt-24 space-y-3 xl:hidden">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {paged.pageItems.map((p) => {
+                  const st = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.en_curso;
+                  return (
+                    <li key={p.id} className="flex min-w-0 flex-col rounded-2xl border border-linea bg-chapa shadow-suave">
+                      <div className="flex-1 p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <Link href={`/projects/${p.id}/editar`} className="block truncate text-base font-bold hover:underline">
+                              {p.name}
+                            </Link>
+                            <p className="truncate text-sm text-tiza">{p.company_name || 'Particular'}</p>
+                          </div>
+                          <Chip tone={st.tone}>{st.label}</Chip>
+                        </div>
+                        <p className="mt-3 flex items-start gap-2 text-[15px] font-medium">
+                          <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-tiza" aria-hidden />
+                          <span className="min-w-0 break-words">{p.address}</span>
+                        </p>
                       </div>
-                      <Chip tone={st.tone}>{st.label}</Chip>
-                    </div>
-                    <p className="mt-3 flex items-start gap-2 text-[15px] font-medium">
-                      <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-tiza" aria-hidden />
-                      <span className="min-w-0 break-words">{p.address}</span>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 border-t border-linea px-3 py-2.5">
-                    <span className="min-w-0 flex-1 truncate px-2 text-sm text-tiza">{PROJECT_TYPES[p.project_type] ?? p.project_type}</span>
-                    <Menu
-                      label={`Acciones de ${p.name}`}
-                      items={[
-                        { label: 'Editar', icon: <Pencil className="w-4 h-4" />, onSelect: () => router.push(`/projects/${p.id}/editar`) },
-                        { label: 'Dar de baja', icon: <Trash2 className="w-4 h-4" />, tone: 'peligro', onSelect: () => setDeleting(p) },
-                      ]}
-                    />
-                    <ButtonLink href={`/opportunities/nuevo?project_id=${p.id}`} size="sm" variant="secundario">
-                      <ClipboardList className="w-4 h-4" aria-hidden />
-                      Presupuestar
-                    </ButtonLink>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="flex items-center gap-2 border-t border-linea px-3 py-2.5">
+                        <span className="min-w-0 flex-1 truncate px-2 text-sm text-tiza">{PROJECT_TYPES[p.project_type] ?? p.project_type}</span>
+                        {actions(p)}
+                        <ButtonLink href={`/opportunities/nuevo?project_id=${p.id}`} size="sm" variant="secundario">
+                          <ClipboardList className="w-4 h-4" aria-hidden />
+                          Presupuestar
+                        </ButtonLink>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="px-1" />
+            </div>
+            <div className="hidden xl:block">
+              <DataTable
+                data={filtered}
+                columns={columns}
+                caption="Obras"
+                initialSort={[{ id: 'estado', desc: false }]}
+                dense
+                grow="name"
+                resetKey={resetKey}
+                onRowClick={(p) => router.push(`/projects/${p.id}/editar`)}
+                rowLabel={(p) => `Abrir ${p.name}`}
+              />
+            </div>
+          </>
         )}
       </div>
       {deleting && (

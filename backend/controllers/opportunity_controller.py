@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
+from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.controllers.permissions import (
     MANAGER_ROLES,
     ensure_owner,
@@ -62,7 +63,7 @@ def list_opportunities(
     assigned_to: UUID | None = Query(None, description="Filtrar por responsable (sólo admin y responsable comercial)"),
     origin: str | None = Query(None, max_length=100, description="Filtrar por origen del presupuesto"),
     q: str | None = Query(None, description="Búsqueda por título"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(LIST_DEFAULT_LIMIT, ge=1, le=LIST_MAX_LIMIT),
     offset: int = Query(0, ge=0),
     authorization: str | None = Header(None),
 ) -> list[OpportunityResponse]:
