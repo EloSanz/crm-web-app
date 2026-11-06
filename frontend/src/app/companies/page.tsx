@@ -23,7 +23,7 @@ import { deleteCompany, fetchCompanies } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { usePagination } from '@/lib/usePagination';
 import { CLIENT_STATUS } from '@/lib/catalogs';
-import { initials } from '@/lib/format';
+import { initials, matchesSearch } from '@/lib/format';
 
 type Filter = 'all' | CompanyStatus;
 const helper = createColumnHelper<TableSetup, Company>();
@@ -39,10 +39,7 @@ export default function CompaniesPage() {
 
   const companies = useMemo(() => data ?? [], [data]);
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return companies.filter(
-      (c) => (filter === 'all' || c.status === filter) && (!q || [c.name, c.cuit, c.industry, c.address].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)))
-    );
+    return companies.filter((c) => (filter === 'all' || c.status === filter) && matchesSearch(search, [c.name, c.cuit, c.industry, c.address]));
   }, [companies, search, filter]);
   // En el celular, por nombre (igual que el orden inicial de la tabla); 10 por vista.
   const sorted = useMemo(() => [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'es')), [filtered]);

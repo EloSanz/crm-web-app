@@ -56,10 +56,11 @@ async def _process_image_upload(file: UploadFile, prefix: str) -> dict[str, Any]
             "size_bytes": len(file_bytes),
         }
     except Exception as e:
+        # El detalle técnico (credenciales, bucket) queda en el log; al usuario le llega un mensaje claro.
         logger.error(f"Error procesando upload a S3: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al subir imagen a S3: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="No se pudo subir el archivo. Probá de nuevo en unos minutos.",
         )
 
 

@@ -648,6 +648,8 @@ class OpportunityService:
 
         now = datetime.now(timezone.utc)
         opp_id = uuid4()
+        if data.assigned_to and str(data.assigned_to) != str(created_by):
+            cls._ensure_active_assignee(data.assigned_to)
         assigned_to = data.assigned_to or created_by or UUID("00000000-0000-0000-0000-000000000001")
 
         items_payload, subtotal = cls._build_items(opp_id, data.items, now)

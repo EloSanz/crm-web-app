@@ -158,3 +158,15 @@ export function isValidDni(value: string): boolean {
   const n = value.replace(/\D/g, '').length;
   return n === 7 || n === 8;
 }
+
+/** Búsqueda de listados: por texto, y además por dígitos (CUIT, DNI o teléfono escritos con o sin guiones ni espacios). */
+export function matchesSearch(query: string, values: Array<string | null | undefined>): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const digits = /^[\d\s.\-+()]+$/.test(q) ? q.replace(/\D/g, '') : '';
+  return values.some((v) => {
+    if (!v) return false;
+    const text = String(v).toLowerCase();
+    return text.includes(q) || (digits.length > 0 && text.replace(/\D/g, '').includes(digits));
+  });
+}

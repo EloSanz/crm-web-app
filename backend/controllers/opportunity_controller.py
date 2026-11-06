@@ -176,7 +176,9 @@ def update_opportunity(
     summary="Baja lógica de un presupuesto",
 )
 def delete_opportunity(opp_id: UUID, authorization: str | None = Header(None)):
-    """Aplica baja lógica (Invariante 2)."""
+    """Aplica baja lógica (Invariante 2). Sólo los managers: el vendedor cierra sus presupuestos como perdidos,
+    así queda el motivo y cuentan en los indicadores, en vez de desaparecer."""
+    require_roles(authorization, MANAGER_ROLES)
     current = OpportunityService.get_opportunity_by_id(opp_id)
     ensure_owner(authorization, current.assigned_to)
     _ensure_can_touch_closed(authorization, current)

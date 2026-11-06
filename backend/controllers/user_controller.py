@@ -2,22 +2,31 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Response, status
 
-from backend.controllers.permissions import require_roles, session_user_id
-from backend.models.user import CrmUserCreate, CrmUserResponse, CrmUserUpdate, PasswordReset
+from backend.controllers.permissions import MANAGER_ROLES, require_roles, session_from_header, session_user_id
+from backend.models.user import CrmUserCreate, CrmUserDirectoryEntry, CrmUserResponse, CrmUserUpdate, PasswordReset
 from backend.services.user_service import UserService
 
 router = APIRouter(prefix="/api/users", tags=["Usuarios y Roles"])
 
 
-@router.get("", response_model=list[CrmUserResponse], summary="Listar usuarios del CRM")
-def list_users(include_inactive: bool = True) -> list[CrmUserResponse]:
-    """Todos los roles pueden listar usuarios (para ver responsables y asignar presupuestos)."""
-    return UserService.list_users(include_inactive=include_inactive)
+def _directory(user: CrmUserResponse) -> CrmUserDirectoryEntry:
+    return CrmUserDirectoryEntry(id=user.id, full_name=user.full_name, role=user.role, is_active=user.is_active)
 
 
-@router.get("/{user_id}", response_model=CrmUserResponse, summary="Detalle de un usuario")
-def get_user(user_id: UUID) -> CrmUserResponse:
-    return UserService.get_user(user_id)
+@router.get("", response_model=list[CrmUserResponse | CrmUserDirectoryEntry], summary="Listar usuarios del CRM")
+def list_users(
+    include_inactive: bool = True, authorization: str | None = Header(None)
+) -> list[CrmUserResponse | CrmUserDirectoryEntry]:
+    """Todos los roles listan usuarios (para ver responsables); el vendedor ve sólo los activos, sin correo."""
+    if session_from_header(authorization).get("role") in MANAGER_ROLES:
+        return UserService.list_users(include_inactive=include_inactive)
+    return [_directory(u) for u in UserService.list_users(include_inactive=False)]
+
+
+@router.get("/{user_id}", response_model=CrmUserResponse | CrmUserDirectoryEntry, summary="Detalle de un usuario")
+def get_user(user_id: UUID, authorization: str | None = Header(None)) -> CrmUserResponse | CrmUserDirectoryEntry:
+    user = UserService.get_user(user_id)
+    return user if session_from_header(authorization).get("role") in MANAGER_ROLES else _directory(user)
 
 
 @router.post(

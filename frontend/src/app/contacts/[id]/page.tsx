@@ -13,7 +13,7 @@ import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { DetailSection, InfoRow, OpportunityMiniList } from '@/components/clients/DetailBits';
 import { ClientActivity } from '@/components/clients/ClientActivity';
-import { fetchContact, fetchOpportunities } from '@/lib/api';
+import { NO_ACCESS, fetchContact, fetchOpportunities } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { CLIENT_STATUS } from '@/lib/catalogs';
 import { formatDate, telHref } from '@/lib/format';
@@ -30,7 +30,11 @@ export default function ContactDetailPage() {
   if (error || !data)
     return (
       <AppLayout>
-        <EmptyState illustration="clientes" title="No encontramos el contacto" action={<ButtonLink href="/contacts" variant="secundario">Volver</ButtonLink>} />
+        <EmptyState
+          illustration="clientes"
+          title={error === NO_ACCESS ? 'No tenés acceso a este contacto' : 'No encontramos el contacto'}
+          description={error === NO_ACCESS ? 'Está asignado a otro vendedor. Pedile al responsable comercial que te lo asigne.' : undefined}
+          action={<ButtonLink href="/contacts" variant="secundario">Volver</ButtonLink>} />
       </AppLayout>
     );
 

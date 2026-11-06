@@ -29,24 +29,38 @@ export const MANAGE_NAV = [
   { label: 'Configuración', href: '/configuracion', icon: Settings2, match: (p: string) => p.startsWith('/configuracion'), role: 'admin' as const },
 ];
 
-/** Sin sesión, o con un token vencido / sin firma (sesiones viejas), se vuelve al login. Se valida una vez por pestaña. */
+/**
+ * Sin sesión, o con un token vencido / sin firma (sesiones viejas), se vuelve al login. Se valida al abrir la pestaña y,
+ * además, cualquier respuesta 401 de la API (usuario dado de baja, sesión vencida) cierra la sesión en el momento.
+ */
 function useSessionGuard() {
   const router = useRouter();
   useEffect(() => {
-    const token = localStorage.getItem('crm_access_token');
     const toLogin = () => {
       clearStoredAuth();
       sessionStorage.removeItem('crm_session_ok');
       router.replace('/login');
     };
-    if (!token) return toLogin();
-    if (sessionStorage.getItem('crm_session_ok') === token) return;
-    fetch(buildApiUrl('/api/auth/me'), { headers: getAuthHeaders(), cache: 'no-store' })
-      .then((res) => {
-        if (res.status === 401) toLogin();
-        else if (res.ok) sessionStorage.setItem('crm_session_ok', token);
-      })
-      .catch(() => undefined);
+    const apiBase = buildApiUrl('/api');
+    const original = window.fetch;
+    window.fetch = async (input, init) => {
+      const res = await original(input, init);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (res.status === 401 && url.startsWith(apiBase) && !url.includes('/api/auth/login')) toLogin();
+      return res;
+    };
+    const token = localStorage.getItem('crm_access_token');
+    if (!token) toLogin();
+    else if (sessionStorage.getItem('crm_session_ok') !== token) {
+      fetch(buildApiUrl('/api/auth/me'), { headers: getAuthHeaders(), cache: 'no-store' })
+        .then((res) => {
+          if (res.ok) sessionStorage.setItem('crm_session_ok', token);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      window.fetch = original;
+    };
   }, [router]);
 }
 

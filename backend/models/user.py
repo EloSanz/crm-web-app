@@ -39,3 +39,13 @@ class CrmUserResponse(CrmUserBase):
     id: UUID
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class CrmUserDirectoryEntry(BaseModel):
+    """Lo que ve un vendedor del equipo: nombre y rol para mostrar responsables, sin correo."""
+
+    id: UUID
+    full_name: str
+    role: CrmRole
+    is_active: bool = True
+    email: str | None = None

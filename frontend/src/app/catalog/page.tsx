@@ -78,9 +78,12 @@ export default function CatalogPage() {
       sortFn: 'text',
       // Hasta dos renglones: el nombre del material es lo que más importa en la fila.
       cell: (info) => (
-        <span className="line-clamp-2 min-w-[11rem] font-semibold leading-snug" title={info.getValue()}>
-          {info.getValue()}
-        </span>
+        // Ancho fijo en un bloque: el line-clamp solo no le da ancho mínimo a la celda y el texto pisaba el rubro.
+        <div className="min-w-[7.5rem]">
+          <span className="line-clamp-2 break-words font-semibold leading-snug" title={info.getValue()}>
+            {info.getValue()}
+          </span>
+        </div>
       ),
     }),
     helper.accessor(categoryPosition, {
@@ -232,7 +235,6 @@ export default function CatalogPage() {
                 columns={columns}
                 caption="Catálogo de materiales"
                 dense
-                grow="name"
                 alignRight={['minorista', 'mayorista', 'minimo']}
                 resetKey={resetKey}
                 onRowClick={admin ? (p) => router.push(`/catalog/${p.id}/editar`) : undefined}

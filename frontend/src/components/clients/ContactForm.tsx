@@ -114,7 +114,6 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
               aria-invalid={invalid}
               type="tel"
               inputMode="tel"
-              maxLength={10}
               value={data.phone || ''}
               onChange={(e) => {
                 set('phone', formatPhone(e.target.value));
