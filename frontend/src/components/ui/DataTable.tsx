@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import {
   createPaginatedRowModel,
   createSortedRowModel,
@@ -15,6 +15,8 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table';
+import { usePagination } from '@/lib/usePagination';
+import { PAGE_SIZE, Pagination } from './Pagination';
 
 /** Funciones de la tabla: orden por columna y paginación. */
 export const tableSetup = tableFeatures({
@@ -40,6 +42,7 @@ interface DataTableProps<T extends object> {
   columns: AnyColumns;
   /** Orden inicial, ej. [{ id: 'amount', desc: true }]. */
   initialSort?: { id: string; desc: boolean }[];
+  /** Registros por página: 10 en todo el CRM; cambiarlo sólo con una razón clara. */
   pageSize?: number;
   onRowClick?: (row: T) => void;
   rowLabel?: (row: T) => string;
@@ -51,17 +54,20 @@ interface DataTableProps<T extends object> {
   dense?: boolean;
   /** Columna que ocupa el ancho sobrante y recorta su texto en vez de ensanchar la tabla. */
   grow?: string;
+  /** Búsqueda y filtros de la pantalla: al cambiar se vuelve a la primera página (ver usePagination). */
+  resetKey?: unknown;
 }
 
 /**
  * Tabla del sistema de diseño: se ordena tocando el encabezado de cada columna y se pagina abajo.
  * La fila entera es navegable con el teclado cuando hay onRowClick.
+ * La paginación es del lado del cliente (el volumen del TP es chico): `data` trae todo lo filtrado.
  */
 export function DataTable<T extends object>({
   data,
   columns,
   initialSort = [],
-  pageSize = 10,
+  pageSize = PAGE_SIZE,
   onRowClick,
   rowLabel,
   caption,
@@ -69,27 +75,32 @@ export function DataTable<T extends object>({
   emptyText = 'Sin resultados',
   dense = false,
   grow,
+  resetKey,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState(initialSort);
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+  // Vuelve a la primera página cuando cambian los datos (otra búsqueda o filtro); ver usePagination.
+  const { page: pageIndex, pageCount, total, setPage } = usePagination(data, { pageSize, resetKey });
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const pagination = { pageIndex, pageSize };
 
   const table = useTable({
     features: tableSetup,
     columns,
     data,
     state: { sorting, pagination },
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
-    autoResetPageIndex: true,
+    // Ordenar de nuevo vuelve a la primera página.
+    onSortingChange: (updater) => {
+      setSorting(updater);
+      setPage(0);
+    },
+    onPaginationChange: (updater) => setPage((typeof updater === 'function' ? updater(pagination) : updater).pageIndex),
+    autoResetPageIndex: false,
   });
 
   const rows = table.getRowModel().rows;
-  const total = data.length;
-  const from = total === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
-  const to = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
+    <div ref={anchorRef} className="scroll-mt-24 overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-left">
           <caption className="sr-only">{caption}</caption>
@@ -179,36 +190,19 @@ export function DataTable<T extends object>({
           </tbody>
         </table>
       </div>
-      {total > pagination.pageSize && (
-        <div className="flex items-center justify-between gap-3 border-t border-linea px-4 py-2.5">
-          <span className="cifra text-sm text-tiza">
-            {from}–{to} de {total}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-tinta hover:bg-chapa-2 disabled:opacity-35 cursor-pointer"
-              aria-label="Página anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="cifra px-2 text-sm font-semibold">
-              {pagination.pageIndex + 1} / {table.getPageCount()}
-            </span>
-            <button
-              type="button"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-tinta hover:bg-chapa-2 disabled:opacity-35 cursor-pointer"
-              aria-label="Página siguiente"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination page={pageIndex} pageCount={pageCount} total={total} pageSize={pageSize} onChange={setPage} anchorRef={anchorRef} className="border-t border-linea px-4 py-3 sm:px-5" />
+    </div>
+  );
+}
+
+/**
+ * Celda de acciones (menú ⋯, enlaces) dentro de una fila clickeable: frena el clic y el Enter para
+ * que no abran el detalle. React propaga los eventos del menú (un portal) por este árbol.
+ */
+export function CellActions({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      {children}
     </div>
   );
 }

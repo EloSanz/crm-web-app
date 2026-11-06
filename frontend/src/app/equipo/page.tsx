@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createColumnHelper } from '@tanstack/react-table';
 import { ChartLine } from 'lucide-react';
@@ -10,6 +10,8 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { FilterChips } from '@/components/ui/FilterChips';
 import { DataTable, type TableSetup } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/lib/usePagination';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { RequireRole } from '@/components/users/RequireRole';
@@ -44,6 +46,14 @@ function Team() {
   const [scope, setScope] = useState<'todos' | 'frios'>('frios');
 
   const open = useMemo(() => (data ? data.opportunities.filter((o) => o.status === 'abierta') : []), [data]);
+  // Memorizadas: la paginación vuelve a la primera página cuando cambia la referencia de la lista.
+  const assignList = useMemo(() => open.filter((o) => scope === 'todos' || healthOf(o) !== 'healthy'), [open, scope]);
+  const assignSorted = useMemo(
+    () => [...assignList].sort((a, b) => (b.days_since_last_activity ?? 999) - (a.days_since_last_activity ?? 999)),
+    [assignList]
+  );
+  const paged = usePagination(assignSorted, { resetKey: scope });
+  const listRef = useRef<HTMLDivElement>(null);
 
   const reassign = async (opp: Opportunity, userId: string) => {
     if (userId === opp.assigned_to) return;
@@ -62,7 +72,6 @@ function Team() {
 
   const activeUsers: CrmUser[] = data.users.filter((u) => u.is_active);
 
-  const assignList = open.filter((o) => scope === 'todos' || healthOf(o) !== 'healthy');
   const assignColumns = assignHelper.columns([
     assignHelper.accessor('title', {
       header: 'Presupuesto',
@@ -136,15 +145,14 @@ function Team() {
           />
         </div>
         <div className="hidden xl:block">
-          <DataTable data={assignList} columns={assignColumns} caption="Reasignar presupuestos abiertos" initialSort={[{ id: 'seguimiento', desc: true }]} alignRight={['monto']} pageSize={8} emptyText="Ningún presupuesto se está enfriando." />
+          <DataTable data={assignList} columns={assignColumns} caption="Reasignar presupuestos abiertos" initialSort={[{ id: 'seguimiento', desc: true }]} alignRight={['monto']} resetKey={scope} emptyText="Ningún presupuesto se está enfriando." />
         </div>
         {assignList.length === 0 ? (
           <p className="rounded-2xl border border-linea bg-chapa px-5 py-8 text-center text-[15px] text-tiza xl:hidden">Ningún presupuesto se está enfriando.</p>
         ) : (
-          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:hidden" aria-label="Reasignar presupuestos abiertos">
-            {[...assignList]
-              .sort((a, b) => (b.days_since_last_activity ?? 999) - (a.days_since_last_activity ?? 999))
-              .map((o) => (
+          <div ref={listRef} className="scroll-mt-24 space-y-3 xl:hidden">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Reasignar presupuestos abiertos">
+              {paged.pageItems.map((o) => (
                 <li key={o.id} className="rounded-2xl border border-linea bg-chapa p-4 shadow-suave">
                   <div className="flex items-start gap-3">
                     <Punta health={healthOf(o)} size={18} className="mt-0.5" />
@@ -169,7 +177,9 @@ function Team() {
                   </div>
                 </li>
               ))}
-          </ul>
+            </ul>
+            <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="px-1" />
+          </div>
         )}
       </section>
     </div>

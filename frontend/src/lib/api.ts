@@ -56,6 +56,14 @@ export function buildApiUrl(endpoint: string, params?: Record<string, string | u
   return qs ? `${base}${cleanPath}?${qs}` : `${base}${cleanPath}`;
 }
 
+/**
+ * Tope de registros que pedimos en los listados (empresas, contactos, materiales, presupuestos y obras).
+ * La paginación es del lado del cliente (10 por vista) porque el volumen del TP es chico: traemos todo
+ * de una vez para que la búsqueda y los filtros trabajen sobre el total y no haya un corte silencioso
+ * en los primeros 100. El backend acepta hasta 1000 (ver LIST_MAX_LIMIT en backend/controllers).
+ */
+export const LIST_LIMIT = '1000';
+
 export const CRM_CLIENT_API_KEY =
   process.env.NEXT_PUBLIC_CRM_API_KEY || 'crm_live_corralon_secret_key_2026';
 
@@ -89,7 +97,7 @@ export async function readError(res: Response, fallback: string): Promise<string
 // ---------------------------------------------------------------------------
 
 export async function fetchCompanies(params?: { q?: string; status?: string }): Promise<Company[]> {
-  const url = buildApiUrl('/api/companies', params);
+  const url = buildApiUrl('/api/companies', { limit: LIST_LIMIT, ...params });
   const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
@@ -169,7 +177,7 @@ export async function fetchCompanyContacts(companyId: string): Promise<Contact[]
 // ---------------------------------------------------------------------------
 
 export async function fetchContacts(params?: { q?: string; status?: string; company_id?: string }): Promise<Contact[]> {
-  const url = buildApiUrl('/api/contacts', params);
+  const url = buildApiUrl('/api/contacts', { limit: LIST_LIMIT, ...params });
   const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
@@ -237,7 +245,7 @@ export async function deleteContact(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchProducts(params?: { category?: string; q?: string }): Promise<Product[]> {
-  const url = buildApiUrl('/api/products', params);
+  const url = buildApiUrl('/api/products', { limit: LIST_LIMIT, ...params });
   const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
@@ -327,7 +335,7 @@ export async function fetchOpportunities(params?: {
   assigned_to?: string;
   origin?: string;
 }): Promise<Opportunity[]> {
-  const url = buildApiUrl('/api/opportunities', params);
+  const url = buildApiUrl('/api/opportunities', { limit: LIST_LIMIT, ...params });
   const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',
@@ -412,7 +420,7 @@ export async function fetchProjects(params?: {
   project_type?: string;
   q?: string;
 }): Promise<Project[]> {
-  const url = buildApiUrl('/api/projects', params);
+  const url = buildApiUrl('/api/projects', { limit: LIST_LIMIT, ...params });
   const res = await fetch(url, {
     headers: getAuthHeaders(),
     cache: 'no-store',

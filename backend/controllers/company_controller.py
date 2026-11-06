@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
+from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.models.company import CompanyCreate, CompanyResponse, CompanyStatus, CompanyUpdate
 from backend.models.contact import ContactResponse
 from backend.services.company_service import CompanyService
@@ -30,7 +31,7 @@ def _extract_user_id(authorization: str | None) -> UUID | None:
 def list_companies(
     q: str | None = Query(None, description="Búsqueda por nombre o CUIT"),
     status: CompanyStatus | None = Query(None, description="Filtrar por estado comercial"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(LIST_DEFAULT_LIMIT, ge=1, le=LIST_MAX_LIMIT),
     offset: int = Query(0, ge=0),
 ) -> list[CompanyResponse]:
     """Retorna las empresas no eliminadas ordenadas cronológicamente."""
