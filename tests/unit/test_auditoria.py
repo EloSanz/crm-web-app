@@ -115,7 +115,7 @@ def test_el_endpoint_sigue_recibiendo_el_json_del_body(client: TestClient):
     """El middleware copia el cuerpo sin consumirlo: el endpoint lo recibe completo."""
     payload = {
         "name": "Hormigones del Sur SA",
-        "cuit": "30-71234568-7",
+        "cuit": "30-71234570-1",
         "email": "ventas@hormigonesdelsur.com",
         "notes": "Pide entrega en obra los martes " + "x" * 2000,
     }
@@ -177,6 +177,11 @@ def test_describe_deriva_entidad_id_y_accion():
     d = describe("PUT", "/api/catalogs/reorder", {"kind": "origin", "ids": []}, None)
     assert d["entity"] == "catálogo" and d["entity_id"] is None and d["action"] == "otra"
     d = describe("POST", f"/api/users/{oid}/password", {"password": "x"}, None)
-    assert d["entity"] == "usuario" and d["entity_id"] == oid and d["action"] == "otra"
+    assert d["entity"] == "usuario" and d["entity_id"] == oid and d["action"] == "modificar"
+    assert d["summary"] == "Restableció la contraseña de un usuario"
+    d = describe("POST", f"/api/users/{oid}/password", {"password": "x"}, None, "Ana Pérez")
+    assert d["summary"] == "Restableció la contraseña de «Ana Pérez»"
     d = describe("DELETE", f"/api/projects/{oid}", None, None)
     assert d["entity"] == "obra" and d["action"] == "dar_de_baja"
+    d = describe("DELETE", f"/api/companies/{oid}", None, None, "Constructora Sur")
+    assert d["summary"] == "Dio de baja la empresa «Constructora Sur»"

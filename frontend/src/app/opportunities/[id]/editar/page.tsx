@@ -109,6 +109,14 @@ function GeneralDataForm({ opp, companies, contacts, projects, readOnly }: Gener
   const [saving, setSaving] = useState(false);
 
   const companyContacts = useMemo(() => contacts.filter((c) => c.company_id === companyId), [contacts, companyId]);
+  // Al cambiar el cliente, la obra elegida se suelta si es de otro cliente (el backend la rechazaría).
+  const keepProjectOf = (client: { companyId?: string; contactId?: string }) => {
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) return;
+    const belongs = client.companyId ? p.company_id === client.companyId : !!client.contactId && p.contact_id === client.contactId;
+    if (!belongs) setProjectId('');
+  };
+
   const projectOptions = useMemo(() => {
     const list = projects.filter((p) =>
       p.id === projectId || (clientType === 'company' ? !companyId || p.company_id === companyId : !contactId || p.contact_id === contactId)
@@ -183,6 +191,7 @@ function GeneralDataForm({ opp, companies, contacts, projects, readOnly }: Gener
               if (readOnly) return;
               setClientType(v);
               setContactId(v === 'contact' ? opp.contact_id ?? '' : '');
+              keepProjectOf(v === 'contact' ? { contactId: opp.contact_id ?? '' } : { companyId });
             }}
             options={[
               { value: 'company', label: 'Empresa' },
@@ -201,6 +210,7 @@ function GeneralDataForm({ opp, companies, contacts, projects, readOnly }: Gener
                     onChange={(v) => {
                       setCompanyId(v);
                       setContactId('');
+                      keepProjectOf({ companyId: v });
                     }}
                     placeholder="Elegí una empresa"
                     searchable
@@ -233,7 +243,10 @@ function GeneralDataForm({ opp, companies, contacts, projects, readOnly }: Gener
                   invalid={invalid}
                   disabled={readOnly}
                   value={contactId}
-                  onChange={setContactId}
+                  onChange={(v) => {
+                    setContactId(v);
+                    keepProjectOf({ contactId: v });
+                  }}
                   placeholder="Elegí un contacto"
                   searchable
                   options={contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}`, hint: c.company_name || c.job_title || undefined }))}

@@ -71,7 +71,6 @@ export function CompanyForm({ company }: { company?: Company | null }) {
         <Field
           label="CUIT"
           error={cuitError ?? undefined}
-          hint={!cuitError && (data.cuit || '').replace(/\D/g, '').length === 11 && !isValidCuit(data.cuit || '') ? 'Revisalo: el dígito verificador no coincide' : undefined}
         >
           {({ id, invalid }) => (
             <Input
@@ -100,7 +99,6 @@ export function CompanyForm({ company }: { company?: Company | null }) {
               id={id}
               type="tel"
               inputMode="tel"
-              maxLength={10}
               value={data.phone || ''}
               onChange={(e) => set('phone', formatPhone(e.target.value))}
               placeholder="11 4455-6677"
@@ -140,9 +138,10 @@ export function CompanyForm({ company }: { company?: Company | null }) {
   );
 }
 
-/** Vacío es válido (el CUIT es opcional); si está, tiene que tener sus 11 dígitos. */
+/** Vacío es válido (el CUIT es opcional); si está, tiene que tener sus 11 dígitos y un dígito verificador correcto. */
 function cuitProblem(value: string): string | null {
   const digits = value.replace(/\D/g, '');
-  if (!digits || digits.length === 11) return null;
-  return 'Faltan dígitos: son 11';
+  if (!digits) return null;
+  if (digits.length !== 11) return 'Faltan dígitos: son 11';
+  return isValidCuit(digits) ? null : 'El CUIT no es válido: revisá el dígito verificador';
 }

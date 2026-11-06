@@ -15,15 +15,18 @@ interface Options {
 
 /**
  * Pagina en el cliente una lista ya filtrada: el volumen del TP es chico y el backend manda todo.
- * La página es base 0, igual que en <Pagination>. La vuelta a la primera página se deriva en el
- * render comparando la clave guardada con la actual (sin efectos ni setState en el render), y si
- * la lista se achica y la página ya no existe, se ajusta a la última.
+ * La página es base 0, igual que en <Pagination>. Cuando cambia la clave se vuelve a la primera
+ * página y se guarda la clave nueva (ajuste de estado en el render, el patrón que recomienda React
+ * para estado derivado): así, volver a la búsqueda anterior no reabre la página vieja. Si la lista
+ * se achica y la página ya no existe, se ajusta a la última.
  */
 export function usePagination<T>(items: T[], { pageSize = PAGE_SIZE, resetKey }: Options = {}) {
   const key = resetKey === undefined ? items : resetKey;
   const [state, setState] = useState<{ key: unknown; page: number }>({ key, page: 0 });
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-  const page = Object.is(state.key, key) ? Math.min(state.page, pageCount - 1) : 0;
+  const changed = !Object.is(state.key, key);
+  if (changed) setState({ key, page: 0 });
+  const page = changed ? 0 : Math.min(state.page, pageCount - 1);
   return {
     page,
     pageCount,

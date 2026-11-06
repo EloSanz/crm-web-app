@@ -108,6 +108,9 @@ export async function fetchCompanies(params?: { q?: string; status?: string }): 
   return res.json();
 }
 
+/** Mensaje de error cuando la API responde 403 al abrir una ficha: el registro existe pero es de otro vendedor. */
+export const NO_ACCESS = 'No tenés acceso a este registro';
+
 export async function fetchCompany(id: string): Promise<Company> {
   const url = buildApiUrl(`/api/companies/${id}`);
   const res = await fetch(url, {
@@ -115,7 +118,7 @@ export async function fetchCompany(id: string): Promise<Company> {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('Error al obtener detalle de la empresa');
+    throw new Error(res.status === 403 ? NO_ACCESS : 'Error al obtener detalle de la empresa');
   }
   return res.json();
 }
@@ -195,7 +198,7 @@ export async function fetchContact(id: string): Promise<Contact> {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('Error al obtener detalle del contacto');
+    throw new Error(res.status === 403 ? NO_ACCESS : 'Error al obtener detalle del contacto');
   }
   return res.json();
 }

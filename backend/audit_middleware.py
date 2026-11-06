@@ -71,7 +71,7 @@ ARTICLES = {
 }
 # Segmentos que nombran una acción, no un id: /users/{id}/password, /email/send, /stages/reorder…
 VERB_SEGMENTS = {
-    "password": "Cambió la contraseña de",
+    "password": "Restableció la contraseña de",
     "reorder": "Reordenó",
     "send": "Envió",
     "log": "Registró",
@@ -121,7 +121,46 @@ def _label(*sources: Any) -> str | None:
     return None
 
 
-def describe(method: str, path: str, body: Any, response: Any) -> dict:
+def _lookup_name(head: str, entity_id: str) -> str | None:
+    """Nombre del registro por id, para las acciones que no lo traen en el pedido ni en la respuesta
+    (bajas que responden 204, restablecer contraseña). Se busca antes de la acción: después de la baja ya no aparece."""
+    from uuid import UUID
+
+    from backend.services.company_service import CompanyService
+    from backend.services.contact_service import ContactService
+    from backend.services.opportunity_service import OpportunityService
+    from backend.services.product_service import ProductService
+    from backend.services.project_service import ProjectService
+    from backend.services.user_service import UserService
+
+    getters = {
+        "companies": CompanyService.get_company_by_id,
+        "contacts": ContactService.get_contact_by_id,
+        "opportunities": OpportunityService.get_opportunity_by_id,
+        "projects": ProjectService.get_project_by_id,
+        "products": ProductService.get_product_by_id,
+        "users": UserService.get_user,
+    }
+    getter = getters.get(head)
+    if not getter:
+        return None
+    try:
+        record = getter(UUID(entity_id.split("/")[0]))
+    except Exception:
+        return None
+    return _label(record.model_dump() if hasattr(record, "model_dump") else record)
+
+
+def _needs_lookup(method: str, path: str) -> tuple[str, str] | None:
+    segments = [s for s in path.split("/")[2:] if s]
+    if len(segments) < 2 or segments[0] not in ENTITIES:
+        return None
+    if method == "DELETE" or (len(segments) >= 3 and segments[2] == "password"):
+        return segments[0], segments[1]
+    return None
+
+
+def describe(method: str, path: str, body: Any, response: Any, known_label: str | None = None) -> dict:
     """Deriva del path y del método la entidad, el id, la acción y un resumen en castellano."""
     segments = [s for s in path.split("/")[2:] if s]
     head = segments[0] if segments else ""
@@ -142,16 +181,20 @@ def describe(method: str, path: str, body: Any, response: Any) -> dict:
         action = "crear"
     else:
         action = "otra"
-    if verb and action != "dar_de_baja":
+    if verb == "password":
+        action = "modificar"
+    elif verb and action != "dar_de_baja":
         action = "otra"
 
     if not entity_id and isinstance(response, dict) and response.get("id") is not None:
         entity_id = str(response["id"])
 
     noun = ARTICLES.get(entity, entity)
-    label = _label(body, response) or ("Gmail" if head == "gmail" else None)
+    label = known_label or _label(body, response) or ("Gmail" if head == "gmail" else None)
     target = f"{noun} «{label}»" if label else noun
-    if verb:
+    if verb == "password":
+        summary = f"{VERB_SEGMENTS[verb]} «{label}»" if label else f"{VERB_SEGMENTS[verb]} un usuario"
+    elif verb:
         summary = f"{VERB_SEGMENTS[verb]} {target}"
     elif action == "crear":
         summary = f"Creó {target}"
@@ -217,13 +260,21 @@ class AuditMiddleware:
                 pass
             await send(message)
 
+        lookup = _needs_lookup(scope["method"], scope["path"])
+        state["label"] = None
+        if lookup:
+            try:
+                state["label"] = await run_in_threadpool(_lookup_name, *lookup)
+            except Exception:  # pragma: no cover - defensa
+                state["label"] = None
+
         await self.app(scope, receive_copy, send_copy)
 
         status = state["status"]
         if status is None or status >= 400:
             return
         try:
-            await self._record(scope, status, req_chunks, sizes, res_chunks, state["content_type"])
+            await self._record(scope, status, req_chunks, sizes, res_chunks, state["content_type"], state["label"])
         except Exception as e:  # la auditoría nunca corta el pedido
             logger.error(f"No se pudo auditar {scope.get('method')} {scope.get('path')}: {e}")
 
@@ -235,6 +286,7 @@ class AuditMiddleware:
         sizes: dict[str, int],
         res_chunks: list[bytes],
         res_content_type: str,
+        known_label: str | None = None,
     ) -> None:
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         method, path = scope["method"], scope["path"]
@@ -250,7 +302,7 @@ class AuditMiddleware:
             except ValueError:
                 response = None
 
-        info = describe(method, path, body, response)
+        info = describe(method, path, body, response, known_label)
         session = session_from_header(headers.get("authorization"))
         await run_in_threadpool(
             AuditService.record,

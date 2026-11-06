@@ -14,7 +14,7 @@ import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { DetailSection, InfoRow, OpportunityMiniList } from '@/components/clients/DetailBits';
 import { ClientActivity } from '@/components/clients/ClientActivity';
-import { fetchCompany, fetchCompanyContacts, fetchOpportunities, fetchProjects } from '@/lib/api';
+import { NO_ACCESS, fetchCompany, fetchCompanyContacts, fetchOpportunities, fetchProjects } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { CLIENT_STATUS, PROJECT_STATUS } from '@/lib/catalogs';
 import { formatDate, telHref } from '@/lib/format';
@@ -37,7 +37,11 @@ export default function CompanyDetailPage() {
   if (error || !data)
     return (
       <AppLayout>
-        <EmptyState illustration="clientes" title="No encontramos la empresa" action={<ButtonLink href="/companies" variant="secundario">Volver</ButtonLink>} />
+        <EmptyState
+          illustration="clientes"
+          title={error === NO_ACCESS ? 'No tenés acceso a esta empresa' : 'No encontramos la empresa'}
+          description={error === NO_ACCESS ? 'Está asignada a otro vendedor. Pedile al responsable comercial que te la asigne.' : undefined}
+          action={<ButtonLink href="/companies" variant="secundario">Volver</ButtonLink>} />
       </AppLayout>
     );
 

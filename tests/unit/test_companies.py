@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 def test_create_and_get_company(client: TestClient):
     payload = {
         "name": "Constructora Los Andes SRL",
-        "cuit": "30-71234567-9",
+        "cuit": "30-71234569-8",
         "industry": "Obra Civil",
         "email": "compras@losandes.com",
         "phone": "11 4455-6677",
@@ -19,7 +19,7 @@ def test_create_and_get_company(client: TestClient):
     assert create_res.status_code == 201
     data = create_res.json()
     assert data["name"] == "Constructora Los Andes SRL"
-    assert data["cuit"] == "30-71234567-9"
+    assert data["cuit"] == "30-71234569-8"
     assert data["status"] == "potencial"
     assert data["is_deleted"] is False
     company_id = data["id"]
@@ -34,7 +34,7 @@ def test_list_and_search_companies(client: TestClient):
     # Crear empresa de prueba
     client.post(
         "/api/companies",
-        json={"name": "Hormigonera del Oeste", "status": "cliente", "cuit": "30-99887766-5"},
+        json={"name": "Hormigonera del Oeste", "status": "cliente", "cuit": "30-99887766-7"},
     )
     # Búsqueda por nombre
     res = client.get("/api/companies?q=Oeste")
@@ -95,11 +95,11 @@ def test_get_nonexistent_company(client: TestClient):
 
 
 def test_duplicate_cuit_is_rejected_without_leaking_the_owner(client):
-    first = client.post("/api/companies", json={"name": "Dueña del CUIT SA", "cuit": "30-71234999-1"})
+    first = client.post("/api/companies", json={"name": "Dueña del CUIT SA", "cuit": "30-71234999-5"})
     assert first.status_code == 201, first.text
-    dup = client.post("/api/companies", json={"name": "Otra SRL", "cuit": "30712349991"})
+    dup = client.post("/api/companies", json={"name": "Otra SRL", "cuit": "30712349995"})
     assert dup.status_code == 409
     assert "Dueña" not in dup.json()["detail"]
     # Editarse a sí misma con el mismo CUIT no es duplicado.
-    same = client.put(f"/api/companies/{first.json()['id']}", json={"cuit": "30-71234999-1", "notes": "x"})
+    same = client.put(f"/api/companies/{first.json()['id']}", json={"cuit": "30-71234999-5", "notes": "x"})
     assert same.status_code == 200, same.text

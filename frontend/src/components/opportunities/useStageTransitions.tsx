@@ -21,7 +21,8 @@ export function useStageTransitions(
   const [lostOpp, setLostOpp] = useState<{ opp: Opportunity; stageId: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const run = async (oppId: string, update: OpportunityUpdateData, title: string, message?: string) => {
+  const run = async (opp: Opportunity, update: OpportunityUpdateData, title: string, message?: string) => {
+    const oppId = opp.id;
     setSubmitting(true);
     applyLocal?.(oppId, update);
     setWinOpp(null);
@@ -32,7 +33,17 @@ export function useStageTransitions(
       await reload();
     } catch (err) {
       toast.error('No se pudo mover el presupuesto', err instanceof Error ? err.message : undefined);
-      await reload(); // deshace el movimiento optimista
+      if (applyLocal) {
+        // Deshace el movimiento optimista en pantalla, sin depender del servidor (puede no haber conexión).
+        applyLocal(oppId, {
+          stage_id: opp.stage_id,
+          status: opp.status,
+          final_value: opp.final_value ?? null,
+          loss_reason: opp.loss_reason ?? null,
+        } as OpportunityUpdateData);
+      } else {
+        await reload();
+      }
     } finally {
       setSubmitting(false);
       setWinOpp(null);
@@ -44,7 +55,7 @@ export function useStageTransitions(
     if (opp.stage_id === stage.id) return;
     if (stage.is_closed_won) return setWinOpp({ opp, stageId: stage.id });
     if (stage.is_closed_lost) return setLostOpp({ opp, stageId: stage.id });
-    void run(opp.id, { stage_id: stage.id, status: 'abierta' }, `Pasó a ${sentenceCase(stage.name).toLocaleLowerCase('es-AR')}`, opp.title);
+    void run(opp, { stage_id: stage.id, status: 'abierta' }, `Pasó a ${sentenceCase(stage.name).toLocaleLowerCase('es-AR')}`, opp.title);
   };
 
   const dialogs = (
@@ -56,7 +67,7 @@ export function useStageTransitions(
           onCancel={() => setWinOpp(null)}
           onConfirm={(value) =>
             run(
-              winOpp.opp.id,
+              winOpp.opp,
               // El total presupuestado queda como estaba; el valor de la venta va aparte.
               { stage_id: winOpp.stageId, status: 'ganada', final_value: value },
               '¡Venta concretada!',
@@ -72,7 +83,7 @@ export function useStageTransitions(
           onCancel={() => setLostOpp(null)}
           onConfirm={(reason) =>
             run(
-              lostOpp.opp.id,
+              lostOpp.opp,
               { stage_id: lostOpp.stageId, status: 'perdida', loss_reason: reason },
               'Marcado como perdido',
               `${lostOpp.opp.title} · ${reason}`

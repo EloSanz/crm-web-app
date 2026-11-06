@@ -29,6 +29,18 @@ def _company(client: TestClient, name: str, status: str = "cliente") -> str:
 
 
 def test_vendedor_only_sees_and_touches_own_quotes(client: TestClient):
+    # El otro vendedor tiene que existir: un presupuesto no se asigna a un usuario inexistente.
+    from backend.services.user_service import _mock_users
+
+    _mock_users.setdefault(
+        OTRO_VENDEDOR_ID,
+        {
+            **_mock_users["00000000-0000-0000-0000-000000000002"],
+            "id": OTRO_VENDEDOR_ID,
+            "email": "otro@crm.com",
+            "full_name": "Otro Vendedor",
+        },
+    )
     stage = _first_stage(client)
     company = _company(client, "Constructora Permisos SRL")
     other = client.post(
@@ -179,8 +191,8 @@ def test_legacy_attachments_in_description_are_recovered():
 
 
 def test_cuit_gets_its_dashes():
-    assert CompanyCreate(name="Corralón SA", cuit="30712345678").cuit == "30-71234567-8"
-    assert CompanyCreate(name="Corralón SA", cuit="30-71234567-8").cuit == "30-71234567-8"
+    assert CompanyCreate(name="Corralón SA", cuit="30712345671").cuit == "30-71234567-1"
+    assert CompanyCreate(name="Corralón SA", cuit="30-71234567-1").cuit == "30-71234567-1"
 
 
 def test_demo_data_is_local_only_and_admin_only(client: TestClient, monkeypatch):
@@ -194,3 +206,39 @@ def test_demo_data_is_local_only_and_admin_only(client: TestClient, monkeypatch)
     # Con Supabase configurado (producción) el endpoint no existe.
     monkeypatch.setattr(settings, "SUPABASE_URL", "https://abcd.supabase.co")
     assert client.post("/api/dev/demo").status_code == 404
+
+
+def test_qa_alta_con_responsable_inexistente_y_baja_solo_managers(client: TestClient):
+    stage = _first_stage(client)
+    company = _company(client, "Constructora QA Responsable SA")
+    bad = client.post(
+        "/api/opportunities",
+        json={
+            "title": "Fantasma",
+            "company_id": company,
+            "assigned_to": "00000000-0000-0000-0000-0000000000ff",
+            "stage_id": stage["id"],
+        },
+    )
+    assert bad.status_code == 422
+    with _client_as("00000000-0000-0000-0000-000000000002", "ejecutivo_ventas", "Ejecutivo Comercial") as vendedor:
+        mine = vendedor.post(
+            "/api/opportunities", json={"title": "Propio", "company_id": company, "stage_id": stage["id"]}
+        ).json()
+        assert vendedor.delete(f"/api/opportunities/{mine['id']}").status_code == 403
+        users = vendedor.get("/api/users").json()
+        assert users and all(u.get("email") is None and u["is_active"] for u in users)
+    assert client.delete(f"/api/opportunities/{mine['id']}").status_code == 204
+
+
+def test_qa_cuit_con_digito_verificador_invalido(client: TestClient):
+    assert client.post("/api/companies", json={"name": "CUIT Malo SA", "cuit": "30-12345678-0"}).status_code == 422
+    assert client.post("/api/companies", json={"name": "CUIT Bueno SA", "cuit": "30-71999000-9"}).status_code == 201
+
+
+def test_qa_obra_nueva_trae_el_nombre_de_la_empresa(client: TestClient):
+    company = _company(client, "Constructora Nombre Obra SA")
+    obra = client.post("/api/projects", json={"name": "Obra QA", "company_id": company, "address": "Calle 1"}).json()
+    assert obra["company_name"] == "Constructora Nombre Obra SA"
+    listed = {p["id"]: p for p in client.get("/api/projects").json()}
+    assert listed[obra["id"]]["company_name"] == "Constructora Nombre Obra SA"

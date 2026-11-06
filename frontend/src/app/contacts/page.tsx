@@ -24,7 +24,7 @@ import { deleteContact, fetchCompanies, fetchContacts } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { usePagination } from '@/lib/usePagination';
 import { CLIENT_STATUS } from '@/lib/catalogs';
-import { initials, telHref } from '@/lib/format';
+import { initials, matchesSearch, telHref } from '@/lib/format';
 
 type Filter = 'all' | ContactStatus;
 const helper = createColumnHelper<TableSetup, Contact>();
@@ -46,9 +46,8 @@ export default function ContactsPage() {
 
   const contacts = useMemo(() => data?.contacts ?? [], [data]);
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return contacts.filter((c) => {
-      const s = !q || [`${c.first_name} ${c.last_name}`, c.phone, c.email, c.company_name].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+      const s = matchesSearch(search, [`${c.first_name} ${c.last_name}`, c.phone, c.email, c.company_name, c.document_number]);
       const co = company === 'all' || (company === 'none' ? !c.company_id : c.company_id === company);
       return s && co && (filter === 'all' || c.status === filter);
     });

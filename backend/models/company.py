@@ -24,6 +24,24 @@ def format_cuit(value: str | None) -> str | None:
     return value.strip() or None
 
 
+CUIT_WEIGHTS = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+
+
+def validate_cuit(value: str | None) -> str | None:
+    """Alta y edición: el CUIT (opcional) tiene 11 dígitos y su dígito verificador (módulo 11 de AFIP) es correcto."""
+    value = format_cuit(value)
+    if value is None:
+        return None
+    digits = [int(ch) for ch in value if ch.isdigit()]
+    if len(digits) != 11:
+        raise ValueError("El CUIT tiene que tener 11 dígitos")
+    check = 11 - sum(d * w for d, w in zip(digits, CUIT_WEIGHTS)) % 11
+    check = 0 if check == 11 else check
+    if check == 10 or check != digits[10]:
+        raise ValueError("El CUIT no es válido: revisá el dígito verificador")
+    return value
+
+
 class CompanyBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=255, description="Razón social o nombre de la empresa contratista")
     cuit: str | None = Field(None, max_length=20, description="CUIT o identificación tributaria")
@@ -44,7 +62,8 @@ class CompanyBase(BaseModel):
 
 
 class CompanyCreate(CompanyBase):
-    pass
+    # Los registros viejos pueden tener un CUIT mal cargado: se valida al cargar o editar, no al leer.
+    _cuit_valid = field_validator("cuit")(validate_cuit)
 
 
 class CompanyUpdate(BaseModel):
@@ -60,7 +79,7 @@ class CompanyUpdate(BaseModel):
     notes: str | None = None
     assigned_to: UUID | None = None
 
-    _cuit = field_validator("cuit")(format_cuit)
+    _cuit = field_validator("cuit")(validate_cuit)
     _phone = field_validator("phone")(validate_phone)
 
 

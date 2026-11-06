@@ -87,6 +87,27 @@ def _init_mock_projects():
 _init_mock_projects()
 
 
+def _with_names(item: dict) -> ProjectResponse:
+    """Modo local: completa el nombre del cliente (en Supabase llega por el join del listado)."""
+    data = dict(item)
+    if data.get("company_id") and not data.get("company_name"):
+        try:
+            from backend.services.company_service import CompanyService
+
+            data["company_name"] = CompanyService.get_company_by_id(UUID(str(data["company_id"]))).name
+        except Exception:
+            pass
+    if data.get("contact_id") and not data.get("contact_name"):
+        try:
+            from backend.services.contact_service import ContactService
+
+            ct = ContactService.get_contact_by_id(UUID(str(data["contact_id"])))
+            data["contact_name"] = f"{ct.first_name} {ct.last_name}".strip()
+        except Exception:
+            pass
+    return ProjectResponse(**data)
+
+
 class ProjectService:
     """Servicio de negocio para gestión de Obras / Proyectos y locaciones de entrega."""
 
@@ -147,7 +168,7 @@ class ProjectService:
             logger.warning(f"Error consultando crm_projects en Supabase: {e}")
 
         # Fallback local en memoria
-        results = [ProjectResponse(**item) for item in _mock_projects.values() if not item.get("is_deleted", False)]
+        results = [_with_names(item) for item in _mock_projects.values() if not item.get("is_deleted", False)]
         if company_id:
             results = [p for p in results if p.company_id == company_id]
         if contact_id:
@@ -195,7 +216,7 @@ class ProjectService:
 
         mock_data = _mock_projects.get(str(project_id))
         if mock_data and not mock_data.get("is_deleted", False):
-            return ProjectResponse(**mock_data)
+            return _with_names(mock_data)
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -227,12 +248,12 @@ class ProjectService:
             if res.data and len(res.data) > 0:
                 created_record = res.data[0]
                 _mock_projects[str(project_id)] = created_record
-                return ProjectResponse(**created_record)
+                return _with_names(created_record)
         except Exception as e:
             logger.warning(f"Error insertando obra en Supabase: {e}")
 
         _mock_projects[str(project_id)] = payload
-        return ProjectResponse(**payload)
+        return _with_names(payload)
 
     @classmethod
     def update_project(cls, project_id: UUID, data: ProjectUpdate) -> ProjectResponse:
