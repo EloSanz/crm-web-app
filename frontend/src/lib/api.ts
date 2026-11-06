@@ -426,7 +426,7 @@ export async function fetchProjects(params?: {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('Error al obtener obras y proyectos');
+    throw new Error(await readError(res, 'Error al obtener obras y proyectos'));
   }
   return res.json();
 }
@@ -438,7 +438,8 @@ export async function fetchProject(id: string): Promise<Project> {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new Error('Error al obtener detalle de la obra');
+    // 403: la obra es de un cliente que el vendedor no ve; el backend explica el motivo.
+    throw new Error(await readError(res, 'Error al obtener detalle de la obra'));
   }
   return res.json();
 }
@@ -451,8 +452,7 @@ export async function createProject(data: ProjectFormData): Promise<Project> {
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Error al registrar la obra');
+    throw new Error(await readError(res, 'Error al registrar la obra'));
   }
   return res.json();
 }
@@ -465,8 +465,7 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>):
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Error al actualizar la obra');
+    throw new Error(await readError(res, 'Error al actualizar la obra'));
   }
   return res.json();
 }

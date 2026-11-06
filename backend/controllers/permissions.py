@@ -77,12 +77,20 @@ class ClientScope:
         # Clientes que ya trabaja otro vendedor (tienen presupuestos suyos): no son cartera libre.
         self.taken_companies: set[str] = set()
         self.taken_contacts: set[str] = set()
+        # Obras con presupuestos del vendedor (las ve siempre) y obras que trabaja otro vendedor.
+        self.project_ids: set[str] = set()
+        self.taken_projects: set[str] = set()
+        # Caché de clientes consultados al decidir qué obras ve (evita repetir lecturas en el listado).
+        self._companies: dict[str, object] = {}
+        self._contacts: dict[str, object] = {}
         for o in OpportunityService.get_opportunities(limit=1000):
             mine = str(o.assigned_to) == self.me
             if o.company_id:
                 (self.company_ids if mine else self.taken_companies).add(str(o.company_id))
             if o.contact_id:
                 (self.contact_ids if mine else self.taken_contacts).add(str(o.contact_id))
+            if getattr(o, "project_id", None):
+                (self.project_ids if mine else self.taken_projects).add(str(o.project_id))
 
     def sees_company(self, company) -> bool:
         if str(company.id) in self.company_ids or str(company.assigned_to) == self.me:
@@ -98,6 +106,49 @@ class ClientScope:
             return False
         # Contacto sin responsable: se ve si su empresa también es visible (o no tiene empresa).
         return company is None or self.sees_company(company)
+
+    def company(self, company_id):
+        """Empresa por id (None si no existe o está dada de baja), con caché."""
+        from backend.services.company_service import CompanyService
+
+        key = str(company_id)
+        if key not in self._companies:
+            try:
+                self._companies[key] = CompanyService.get_company_by_id(company_id)
+            except HTTPException:
+                self._companies[key] = None
+        return self._companies[key]
+
+    def contact(self, contact_id):
+        """Contacto por id (None si no existe o está dado de baja), con caché."""
+        from backend.services.contact_service import ContactService
+
+        key = str(contact_id)
+        if key not in self._contacts:
+            try:
+                self._contacts[key] = ContactService.get_contact_by_id(contact_id)
+            except HTTPException:
+                self._contacts[key] = None
+        return self._contacts[key]
+
+    def sees_project(self, project) -> bool:
+        """Una obra se ve si tiene presupuestos del vendedor o si su cliente (empresa o contacto) le es
+        visible. Una obra sin cliente (datos viejos) es cartera libre, salvo que la trabaje otro vendedor."""
+        if str(project.id) in self.project_ids:
+            return True
+        if not project.company_id and not project.contact_id:
+            return str(project.id) not in self.taken_projects
+        if project.company_id:
+            company = self.company(project.company_id)
+            if company is not None and self.sees_company(company):
+                return True
+        if project.contact_id:
+            contact = self.contact(project.contact_id)
+            if contact is not None:
+                company = self.company(contact.company_id) if contact.company_id else None
+                if self.sees_contact(contact, company):
+                    return True
+        return False
 
 
 def client_scope(authorization: str | None) -> ClientScope | None:
@@ -161,3 +212,44 @@ def ensure_client_owner(authorization: str | None, assigned_to) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sólo el responsable del cliente, el administrador o el responsable comercial pueden hacer esto",
         )
+
+
+# ---------------------------------------------------------------------------
+# Acceso a una obra (pertenece a un cliente: empresa y/o contacto)
+# ---------------------------------------------------------------------------
+
+_PROJECT_FORBIDDEN = "Sólo podés consultar obras de clientes asignados a vos o con presupuestos tuyos"
+
+
+def authorize_project(authorization: str | None, project_id: UUID):
+    """Admin y responsable comercial ven cualquier obra. Un vendedor, las de clientes que ve (asignados
+    a él, con presupuestos suyos o de la cartera libre) y las que tienen presupuestos suyos.
+    404 si no existe, 403 si no."""
+    from backend.services.project_service import ProjectService
+
+    project = ProjectService.get_project_by_id(project_id)
+    scope = client_scope(authorization)
+    if scope is None or scope.sees_project(project):
+        return project
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_PROJECT_FORBIDDEN)
+
+
+def project_client_owner(company_id, contact_id):
+    """Responsable del cliente de una obra: el de la empresa; si la empresa no tiene, el del contacto.
+    None si el cliente no tiene responsable (o la obra no tiene cliente)."""
+    from backend.services.company_service import CompanyService
+    from backend.services.contact_service import ContactService
+
+    for get, client_id in (
+        (CompanyService.get_company_by_id, company_id),
+        (ContactService.get_contact_by_id, contact_id),
+    ):
+        if not client_id:
+            continue
+        try:
+            owner = get(client_id).assigned_to
+        except HTTPException:
+            continue
+        if owner:
+            return owner
+    return None

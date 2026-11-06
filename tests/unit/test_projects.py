@@ -3,6 +3,11 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 
+def _company_id(client: TestClient) -> str:
+    """Toda obra pertenece a un cliente: cada test arma la suya para una empresa."""
+    return client.post("/api/companies", json={"name": f"Constructora {uuid4().hex[:6]}"}).json()["id"]
+
+
 def test_list_projects_and_filter_by_status(client: TestClient):
     res = client.get("/api/projects")
     assert res.status_code == 200
@@ -18,6 +23,7 @@ def test_list_projects_and_filter_by_status(client: TestClient):
 def test_create_and_get_project(client: TestClient):
     payload = {
         "name": f"Edificio Los Aromos {uuid4().hex[:4]}",
+        "company_id": _company_id(client),
         "address": "Calle Falsa 123, Ramos Mejía",
         "project_type": "edificio_multifamiliar",
         "status": "en_curso",
@@ -41,6 +47,7 @@ def test_update_project_status_and_address(client: TestClient):
         "/api/projects",
         json={
             "name": f"Obra Refacción {uuid4().hex[:4]}",
+            "company_id": _company_id(client),
             "address": "San Martín 450, Morón",
             "project_type": "refaccion",
             "status": "planificacion",
@@ -62,6 +69,7 @@ def test_soft_delete_project(client: TestClient):
         "/api/projects",
         json={
             "name": f"Obra Temporal {uuid4().hex[:4]}",
+            "company_id": _company_id(client),
             "address": "Alvear 100, San Justo",
             "project_type": "vivienda_unifamiliar",
             "status": "finalizada",
