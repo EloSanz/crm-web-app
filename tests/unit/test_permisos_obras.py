@@ -96,9 +96,11 @@ def test_seller_sees_only_projects_of_their_clients_free_portfolio_or_own_quotes
     other = _project(client, company_id=_company(client, OTRO_ID))
     my_contact = _contact(client, VENDEDOR_ID)
     by_contact = _project(client, contact_id=my_contact)
-    # Obra de un cliente de otro vendedor, pero con un presupuesto mío (cargado a mi contacto).
-    quoted = _project(client, company_id=_company(client, OTRO_ID))
-    _quote(client, VENDEDOR_ID, quoted, contact_id=my_contact)
+    # Obra de un cliente de otro vendedor, pero con un presupuesto mío para ese mismo cliente
+    # (se lo asignó un manager): la ve por el presupuesto.
+    foreign = _company(client, OTRO_ID)
+    quoted = _project(client, company_id=foreign)
+    _quote(client, VENDEDOR_ID, quoted, company_id=foreign)
     # Obras sin cliente: cartera libre, salvo que la trabaje otro vendedor.
     legacy_free = _legacy_project_without_client()
     legacy_taken = _legacy_project_without_client()
@@ -144,8 +146,9 @@ def test_seller_cannot_edit_or_deactivate_projects_of_foreign_clients(client: Te
     assert seller.delete(f"/api/projects/{other}").status_code == 403
 
     # La ve por un presupuesto suyo, pero el cliente es de otro: no la edita ni la da de baja.
-    quoted = _project(client, company_id=_company(client, OTRO_ID))
-    _quote(client, VENDEDOR_ID, quoted, contact_id=_contact(client, VENDEDOR_ID))
+    foreign = _company(client, OTRO_ID)
+    quoted = _project(client, company_id=foreign)
+    _quote(client, VENDEDOR_ID, quoted, company_id=foreign)
     assert seller.get(f"/api/projects/{quoted}").status_code == 200
     assert seller.put(f"/api/projects/{quoted}", json={"status": "frenada"}).status_code == 403
     assert seller.delete(f"/api/projects/{quoted}").status_code == 403
