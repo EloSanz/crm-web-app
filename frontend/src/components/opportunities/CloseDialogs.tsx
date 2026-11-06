@@ -49,7 +49,7 @@ export function WinDialog({ opp, submitting, onCancel, onConfirm }: WinDialogPro
         }}
       >
         <p className="mb-4 truncate text-[15px] text-tiza">{opp.title}</p>
-        <Field label="Valor final" hint={`Presupuestado: ${formatARS(opp.estimated_value)}`} error={invalid ? 'Ingresá un monto válido' : undefined}>
+        <Field label="Valor final" hint={`Presupuestado: ${formatARS(opp.estimated_value)}. El total presupuestado no se modifica.`} error={invalid ? 'Ingresá un monto válido' : undefined}>
           {({ id, describedBy, invalid: inv }) => (
             <AffixInput
               id={id}

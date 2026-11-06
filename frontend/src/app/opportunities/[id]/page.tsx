@@ -146,7 +146,10 @@ export default function OpportunityDetailPage() {
   const readOnly = !isOpen && !canReassign;
   const openStages = stages.filter((s) => !s.is_closed_won && !s.is_closed_lost);
   const currentIdx = openStages.findIndex((s) => s.id === opp.stage_id);
-  const won = stages.find((s) => s.is_closed_won);
+  const wonStage = stages.find((s) => s.is_closed_won);
+  const won = opp.status === 'ganada';
+  // Regla 5: el valor de la venta queda aparte; los ganados de antes de la migración 12 usan el total.
+  const finalValue = opp.final_value ?? opp.estimated_value;
   const lost = stages.find((s) => s.is_closed_lost);
   const clientHref = opp.company_id ? `/companies/${opp.company_id}` : opp.contact_id ? `/contacts/${opp.contact_id}` : null;
 
@@ -177,8 +180,8 @@ export default function OpportunityDetailPage() {
                     Perdido
                   </Button>
                 )}
-                {won && (
-                  <Button variant="exito" className="order-first col-span-2 sm:order-none" onClick={() => moveTo(opp, won)}>
+                {wonStage && (
+                  <Button variant="exito" className="order-first col-span-2 sm:order-none" onClick={() => moveTo(opp, wonStage)}>
                     <Trophy className="w-4 h-4" aria-hidden />
                     Venta concretada
                   </Button>
@@ -256,9 +259,17 @@ export default function OpportunityDetailPage() {
           <div className="space-y-6">
             <section aria-label="Resumen" className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
               <div className="sobre-pavonado grano-pavonado px-5 py-5 text-white">
-                <div className="min-w-0">
-                  <p className="text-sm text-niebla">{opp.status === 'ganada' ? 'Valor final' : 'Total'}</p>
-                  <p className="cifra titular truncate text-[34px] leading-none">{formatARS(opp.estimated_value)}</p>
+                <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-niebla">{won ? 'Valor final' : 'Total'}</p>
+                    <p className="cifra titular truncate text-[34px] leading-none">{formatARS(won ? finalValue : opp.estimated_value)}</p>
+                  </div>
+                  {won && (
+                    <div className="min-w-0 text-right">
+                      <p className="text-sm text-niebla">Total presupuestado</p>
+                      <p className="cifra truncate text-lg font-bold leading-tight">{formatARS(opp.estimated_value)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 border-b border-linea p-5 sm:grid-cols-2">
@@ -323,7 +334,19 @@ export default function OpportunityDetailPage() {
                 </Datum>
                 {!isOpen && <Datum label="Fecha de cierre">{opp.closed_at ? formatDate(opp.closed_at) : '—'}</Datum>}
                 {opp.status === 'perdida' && <Datum label="Motivo de pérdida">{opp.loss_reason || '—'}</Datum>}
+                <div className="min-w-0 sm:col-span-2">
+                  <dt className="text-[13px] font-semibold text-tiza">Observaciones</dt>
+                  <dd className="mt-0.5 whitespace-pre-line text-[15px] font-medium break-words">{opp.notes || '—'}</dd>
+                </div>
               </dl>
+              {!readOnly && (
+                <div className="flex justify-end border-t border-linea px-5 py-3">
+                  <ButtonLink href={`/opportunities/${opp.id}/editar?seccion=datos`} variant="secundario" size="sm">
+                    <Pencil className="w-4 h-4" aria-hidden />
+                    Editar datos
+                  </ButtonLink>
+                </div>
+              )}
             </section>
 
             <section aria-labelledby="materiales" className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">

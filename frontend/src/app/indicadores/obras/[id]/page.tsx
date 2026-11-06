@@ -71,7 +71,7 @@ function ProjectDetail({ d }: { d: ProjectDetailMetrics }) {
         actions={
           <>
             <PeriodFilter />
-            <ButtonLink href={`/projects/${p.project_id}`} variant="secundario">
+            <ButtonLink href={`/projects/${p.project_id}/editar`} variant="secundario">
               <ExternalLink className="h-4 w-4" aria-hidden />
               Ficha
             </ButtonLink>

@@ -120,7 +120,8 @@ export default function CatalogPage() {
         return hasWholesale(p) ? <span className="cifra whitespace-nowrap text-sm">{formatUnitQty(p.wholesale_min_qty ?? 0, p.unit)}</span> : <span className="text-sm text-tiza">—</span>;
       },
     }),
-    helper.display({ id: 'acciones', header: () => <span className="sr-only">Acciones</span>, cell: (info) => <CellActions>{actions(info.row.original)}</CellActions> }),
+    // Editar y dar de baja materiales es sólo del administrador (el backend responde 403 al resto).
+    ...(admin ? [helper.display({ id: 'acciones', header: () => <span className="sr-only">Acciones</span>, cell: (info) => <CellActions>{actions(info.row.original)}</CellActions> })] : []),
   ]);
 
   const remove = async () => {
@@ -151,10 +152,12 @@ export default function CatalogPage() {
                   Historial
                 </ButtonLink>
               )}
-              <ButtonLink href={filter === 'all' ? '/catalog/nuevo' : `/catalog/nuevo?rubro=${encodeURIComponent(filter)}`} size="lg">
-                <Plus className="w-5 h-5" aria-hidden />
-                Nuevo material
-              </ButtonLink>
+              {admin && (
+                <ButtonLink href={filter === 'all' ? '/catalog/nuevo' : `/catalog/nuevo?rubro=${encodeURIComponent(filter)}`} size="lg">
+                  <Plus className="w-5 h-5" aria-hidden />
+                  Nuevo material
+                </ButtonLink>
+              )}
             </>
           }
         />
@@ -197,9 +200,13 @@ export default function CatalogPage() {
                       <li key={p.id} className="relative flex flex-wrap items-center gap-x-3 px-4 py-3 transition-colors hover:bg-chapa-2/70 sm:flex-nowrap sm:gap-x-4 sm:px-5">
                         <span className="cifra hidden w-20 shrink-0 text-[13px] font-bold text-tiza sm:block">{p.code}</span>
                         <div className="min-w-0 flex-1">
-                          <Link href={`/catalog/${p.id}/editar`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0 focus-visible:outline-none">
-                            {p.name}
-                          </Link>
+                          {admin ? (
+                            <Link href={`/catalog/${p.id}/editar`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0 focus-visible:outline-none">
+                              {p.name}
+                            </Link>
+                          ) : (
+                            <p className="truncate text-[15px] font-semibold">{p.name}</p>
+                          )}
                           <p className="truncate text-[13px] text-tiza">
                             <span className="sm:hidden">{p.code} · </span>
                             {p.unit}
@@ -209,7 +216,7 @@ export default function CatalogPage() {
                           <p className="cifra text-[15px] font-extrabold">{formatARSCents(p.unit_price)}</p>
                           {hasWholesale(p) && <WholesaleLine product={p} className="hidden sm:block" />}
                         </div>
-                        {actions(p)}
+                        {admin && actions(p)}
                         {hasWholesale(p) && <WholesaleLine product={p} className="basis-full pr-[52px] text-right sm:hidden" />}
                       </li>
                     ))}
@@ -228,8 +235,8 @@ export default function CatalogPage() {
                 grow="name"
                 alignRight={['minorista', 'mayorista', 'minimo']}
                 resetKey={resetKey}
-                onRowClick={(p) => router.push(`/catalog/${p.id}/editar`)}
-                rowLabel={(p) => `Editar ${p.name}`}
+                onRowClick={admin ? (p) => router.push(`/catalog/${p.id}/editar`) : undefined}
+                rowLabel={admin ? (p) => `Editar ${p.name}` : undefined}
               />
             </div>
           </>

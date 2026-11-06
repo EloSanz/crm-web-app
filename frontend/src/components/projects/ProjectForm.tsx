@@ -27,7 +27,7 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
   const router = useRouter();
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; address?: string; client?: string }>({});
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [data, setData] = useState<ProjectFormData>({
     name: project?.name ?? '',
@@ -39,12 +39,22 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
     observations: project?.observations ?? '',
   });
   const set = <K extends keyof ProjectFormData>(k: K, v: ProjectFormData[K]) => setData((d) => ({ ...d, [k]: v }));
+  // Al elegir el cliente se limpia el aviso de cliente obligatorio.
+  const setClient = (k: 'company_id' | 'contact_id', v: string | null) => {
+    set(k, v);
+    if (v) setErrors((e) => ({ ...e, client: undefined }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const next = { name: data.name.trim() ? undefined : 'Poné un nombre', address: data.address.trim() ? undefined : 'Falta la dirección' };
+    const next = {
+      name: data.name.trim() ? undefined : 'Poné un nombre',
+      address: data.address.trim() ? undefined : 'Falta la dirección',
+      // Toda obra pertenece a un cliente: alcanza con la empresa o con el contacto.
+      client: data.company_id || data.contact_id ? undefined : 'Elegí la empresa o el contacto de la obra',
+    };
     setErrors(next);
-    if (next.name || next.address) return;
+    if (next.name || next.address || next.client) return;
     setSaving(true);
     try {
       const saved = project ? await updateProject(project.id, data) : await createProject(data);
@@ -70,23 +80,25 @@ export function ProjectForm({ project, companies, contacts, returnTo, presetComp
         <Field label="Dirección de descarga" required error={errors.address} className="sm:col-span-2">
           {({ id, invalid }) => <Input id={id} aria-invalid={invalid} value={data.address} onChange={(e) => set('address', e.target.value)} placeholder="Av. Rivadavia 12300, Ramos Mejía" />}
         </Field>
-        <Field label="Empresa">
-          {({ id }) => (
+        <Field label="Empresa" required={!data.contact_id} error={errors.client} hint="Toda obra es de un cliente: elegí la empresa o el contacto">
+          {({ id, invalid }) => (
             <Select
               id={id}
+              invalid={invalid}
               value={data.company_id || ''}
-              onChange={(v) => set('company_id', v || null)}
+              onChange={(v) => setClient('company_id', v || null)}
               searchable
               options={[{ value: '', label: 'Particular (sin empresa)' }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
             />
           )}
         </Field>
-        <Field label="Responsable en obra">
-          {({ id }) => (
+        <Field label="Responsable en obra" required={!data.company_id} error={errors.client}>
+          {({ id, invalid }) => (
             <Select
               id={id}
+              invalid={invalid}
               value={data.contact_id || ''}
-              onChange={(v) => set('contact_id', v || null)}
+              onChange={(v) => setClient('contact_id', v || null)}
               searchable
               options={[{ value: '', label: 'Sin responsable' }, ...contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}`, hint: c.company_name || undefined }))]}
             />

@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 
 from backend.database import get_supabase_client
+from backend.models.catalog import CatalogKind
 from backend.models.opportunity import (
     OpportunityCreate,
     OpportunityItemResponse,
@@ -15,6 +16,7 @@ from backend.models.opportunity import (
     OpportunityVersionResponse,
     TimelineEvent,
 )
+from backend.services.catalog_service import CatalogService
 from backend.services.company_service import CompanyService
 from backend.services.contact_service import ContactService
 from backend.services.stage_history_service import StageHistoryService
@@ -25,8 +27,8 @@ _mock_opportunities: dict[str, dict] = {}
 _mock_items: dict[str, list[dict]] = {}
 _mock_versions: dict[str, list[dict]] = {}
 
-# Columnas agregadas en las migraciones 05 y 10: si la base todavía no las tiene, se guarda sin ellas.
-OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version", "closed_at", "origin")
+# Columnas agregadas en las migraciones 05, 10 y 12: si la base todavía no las tiene, se guarda sin ellas.
+OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version", "closed_at", "origin", "notes", "final_value")
 OPTIONAL_ITEM_FIELDS = ("list_price", "price_tier", "discount_pct")
 BLOCKED_COMPANY_STATUSES = {"inactivo", "no_contactar"}
 
@@ -68,7 +70,9 @@ FIELD_LABEL = {
     "contact_id": "contacto",
     "project_id": "obra",
     "assigned_to": "responsable",
-    "estimated_value": "valor final",
+    "estimated_value": "total presupuestado",
+    "final_value": "valor final",
+    "notes": "observaciones",
     "expected_close_date": "cierre estimado",
     "delivery_location": "entrega",
     "loss_reason": "motivo de pérdida",
@@ -106,6 +110,9 @@ class OpportunityService:
         # Bases sin la migración 10: sin fecha de cierre ni origen propio.
         data.setdefault("closed_at", None)
         data.setdefault("origin", None)
+        # Bases sin la migración 12: sin observaciones ni valor final propio.
+        data.setdefault("notes", None)
+        data.setdefault("final_value", None)
 
         # Responsable comercial
         if data.get("assigned_to"):
@@ -535,10 +542,62 @@ class OpportunityService:
             )
 
     @staticmethod
-    def _origin_for(data: OpportunityCreate) -> str | None:
-        """Origen propio del presupuesto; si no viene, se precarga con el del cliente (empresa o contacto)."""
-        if data.origin is not None:
-            return data.origin.strip() or None
+    def _ensure_project_matches(project_id: UUID | None, company_id, contact_id) -> None:
+        """Un presupuesto puede ir a una obra, pero de SU cliente: la obra tiene que existir y su empresa
+        o contacto coincidir con los del presupuesto (422 si no)."""
+        if not project_id:
+            return
+        from backend.services.project_service import ProjectService
+
+        try:
+            project = ProjectService.get_project_by_id(project_id)
+        except HTTPException:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="La obra elegida no existe o fue dada de baja.",
+            )
+        p_company = str(project.company_id) if project.company_id else None
+        p_contact = str(project.contact_id) if project.contact_id else None
+        if not p_company and not p_contact:
+            return  # obra sin titular cargado: no es de otro cliente
+        o_company = str(company_id) if company_id else None
+        o_contact = str(contact_id) if contact_id else None
+        clash = (p_company and o_company and p_company != o_company) or (
+            p_contact and o_contact and p_contact != o_contact
+        )
+        shared = (p_company and p_company == o_company) or (p_contact and p_contact == o_contact)
+        if not clash and not shared and p_company and o_contact:
+            # Presupuesto a un contacto y obra a nombre de su empresa: es el mismo cliente.
+            try:
+                shared = str(ContactService.get_contact_by_id(UUID(o_contact)).company_id or "") == p_company
+            except HTTPException:
+                shared = False
+        if clash or not shared:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"La obra «{project.name}» es de otro cliente: elegí una obra del cliente del presupuesto.",
+            )
+
+    @staticmethod
+    def _ensure_active_assignee(user_id) -> None:
+        """Regla 1: el responsable tiene que ser un usuario existente y activo (422 en vez de un error de base)."""
+        from backend.services.user_service import UserService
+
+        try:
+            user = UserService.get_user(UUID(str(user_id)))
+        except (HTTPException, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="El responsable elegido no existe. Elegí un usuario del equipo.",
+            )
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{user.full_name} está dado de baja: elegí un responsable activo.",
+            )
+
+    @staticmethod
+    def _client_origin(data: OpportunityCreate) -> str | None:
         try:
             if data.company_id:
                 return CompanyService.get_company_by_id(data.company_id).origin or None
@@ -547,6 +606,16 @@ class OpportunityService:
         except Exception:
             return None
         return None
+
+    @classmethod
+    def _origin_for(cls, data: OpportunityCreate) -> str | None:
+        """Origen propio del presupuesto; si no viene, se precarga con el del cliente (empresa o contacto).
+        Uno elegido a mano tiene que estar en el catálogo activo; el que ya tenía el cliente vale siempre."""
+        if data.origin is not None:
+            if not data.origin.strip():
+                return None
+            return CatalogService.ensure_value(CatalogKind.ORIGIN, data.origin, keep=[cls._client_origin(data)])
+        return cls._client_origin(data)
 
     @classmethod
     def create_opportunity(
@@ -562,6 +631,7 @@ class OpportunityService:
                 detail="Toda oportunidad debe estar asociada como mínimo a una Empresa o a un Contacto.",
             )
         cls._ensure_company_can_quote(data.company_id)
+        cls._ensure_project_matches(data.project_id, data.company_id, data.contact_id)
 
         # Reglas 3 y 4: un presupuesto nuevo arranca abierto y en una etapa abierta.
         stage_status, stage = _stage_status(data.stage_id)
@@ -604,6 +674,8 @@ class OpportunityService:
             "current_version": 1,
             "closed_at": None,
             "origin": cls._origin_for(data),
+            "notes": (data.notes or "").strip() or None,
+            "final_value": None,
             "is_deleted": False,
             "deleted_at": None,
             "created_at": now.isoformat(),
@@ -656,13 +728,43 @@ class OpportunityService:
                 update_payload[field] = str(update_payload[field])
         if "expected_close_date" in update_payload and update_payload["expected_close_date"]:
             update_payload["expected_close_date"] = update_payload["expected_close_date"].isoformat()
-        for field in ["estimated_value", "discount_pct"]:
+        for field in ["estimated_value", "discount_pct", "final_value"]:
             if field in update_payload and isinstance(update_payload[field], Decimal):
                 update_payload[field] = float(update_payload[field])
         if data.company_id and str(data.company_id) != str(existing.company_id):
             cls._ensure_company_can_quote(data.company_id)
         if "origin" in update_payload:
-            update_payload["origin"] = (update_payload["origin"] or "").strip() or None
+            # El origen que ya tenía vale aunque hoy esté desactivado en el catálogo.
+            update_payload["origin"] = CatalogService.ensure_value(
+                CatalogKind.ORIGIN, update_payload["origin"], keep=[existing.origin]
+            )
+
+        if "notes" in update_payload:
+            update_payload["notes"] = (update_payload["notes"] or "").strip() or None
+        if "delivery_location" in update_payload:
+            update_payload["delivery_location"] = (update_payload["delivery_location"] or "").strip() or None
+        if "title" in update_payload and update_payload["title"]:
+            update_payload["title"] = update_payload["title"].strip()
+
+        # Cómo queda el presupuesto después de aplicar el cambio (reglas 1 y 2 y obra del mismo cliente).
+        final = {
+            f: update_payload[f] if f in update_payload else getattr(existing, f)
+            for f in ("company_id", "contact_id", "project_id", "assigned_to")
+        }
+        if not final["company_id"] and not final["contact_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="El presupuesto tiene que quedar asociado a una empresa o a un contacto.",
+            )
+        if not final["assigned_to"]:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="El presupuesto tiene que tener un responsable.",
+            )
+        if str(final["assigned_to"]) != str(existing.assigned_to):
+            cls._ensure_active_assignee(final["assigned_to"])
+        if any(f in update_payload for f in ("company_id", "contact_id", "project_id")):
+            cls._ensure_project_matches(final["project_id"], final["company_id"], final["contact_id"])
 
         # Reglas 4 a 6 y 14: el estado sale de la etapa; cerrar deja fecha y motivo, reabrir pide motivo.
         new_status, target_stage = _stage_status(update_payload.get("stage_id") or existing.stage_id)
@@ -688,6 +790,11 @@ class OpportunityService:
         if new_status == OpportunityStatus.PERDIDA:
             raw = data.loss_reason if "loss_reason" in data.model_fields_set else existing.loss_reason
             loss_reason = (raw or "").strip()
+            if loss_reason:
+                # Motivo del catálogo activo; el que ya tenía el presupuesto vale aunque esté desactivado.
+                loss_reason = CatalogService.ensure_value(
+                    CatalogKind.LOSS_REASON, loss_reason, keep=[existing.loss_reason]
+                )
             if not loss_reason:
                 raise HTTPException(
                     status_code=422,
@@ -697,8 +804,18 @@ class OpportunityService:
         elif "loss_reason" in update_payload or status_changed:
             update_payload["loss_reason"] = None
         if status_changed:
-            # Fecha real de cierre; al reabrir se limpia. El valor final es el monto vigente (o el que se mande).
+            # Fecha real de cierre; al reabrir se limpia.
             update_payload["closed_at"] = now.isoformat() if new_status != OpportunityStatus.ABIERTA else None
+        # Regla 5: al ganar queda el valor final (el que se mande o el total vigente) sin pisar el presupuestado.
+        if new_status == OpportunityStatus.GANADA:
+            if data.final_value is not None:
+                update_payload["final_value"] = float(data.final_value)
+            elif status_changed:
+                update_payload["final_value"] = float(
+                    update_payload.get("estimated_value", existing.estimated_value) or 0
+                )
+        elif status_changed or "final_value" in update_payload:
+            update_payload["final_value"] = None
 
         # Materiales o descuento → nueva versión con la foto completa (se conserva la historia).
         new_items_payload: list[dict] | None = None

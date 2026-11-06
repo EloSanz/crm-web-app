@@ -35,7 +35,11 @@ export function formatARSCompact(amount: number | string | null | undefined): st
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+  // Una fecha sola (2026-12-05) es un día calendario, no un instante: si se interpreta como UTC,
+  // en Argentina (UTC−3) se muestra el día anterior. Se arma en hora local.
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const date = day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : new Date(iso);
+  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function formatDateTime(iso: string | null | undefined): string {

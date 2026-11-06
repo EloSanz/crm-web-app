@@ -5,6 +5,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, status
 from backend.controllers.auth_controller import decode_simple_token
 from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.controllers.permissions import (
+    authorize_company,
     authorize_contact,
     client_scope,
     ensure_can_reassign,
@@ -71,6 +72,9 @@ def create_contact(
     """Crea un contacto (puede pertenecer a una empresa o ser independiente). Si lo carga un vendedor,
     queda asignado a él."""
     user_id = _extract_user_id(authorization)
+    # Un vendedor no puede colgar contactos de una empresa que no es suya ni de la cartera libre.
+    if data.company_id:
+        authorize_company(authorization, data.company_id)
     seller = owner_scope(authorization)
     if seller is not None:
         data = data.model_copy(update={"assigned_to": seller})
@@ -103,6 +107,8 @@ def update_contact(
         ensure_client_owner(authorization, contact.assigned_to)
     if "assigned_to" in data.model_fields_set:
         ensure_can_reassign(authorization, contact.assigned_to, data.assigned_to)
+    if data.company_id and str(data.company_id) != str(contact.company_id):
+        authorize_company(authorization, data.company_id)
     return ContactService.update_contact(contact_id, data)
 
 

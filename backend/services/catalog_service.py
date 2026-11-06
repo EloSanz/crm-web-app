@@ -255,3 +255,36 @@ class CatalogService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"El tipo de actividad «{row['label']}» está desactivado. Elegí otro.",
             )
+
+    @classmethod
+    def ensure_value(cls, kind: CatalogKind, value: str | None, keep: list[str | None] | None = None) -> str | None:
+        """Valida un origen o motivo de pérdida contra el catálogo activo y devuelve el texto a guardar.
+
+        Se acepta el nombre visible o el código (sin distinguir mayúsculas ni espacios de más). Los valores
+        de `keep` (lo que ya tenía el registro) valen aunque hoy estén desactivados o no estén en el
+        catálogo, para no trabar la edición de datos viejos. 422 si no existe o está desactivado."""
+        text = " ".join((value or "").split())
+        if not text:
+            return None
+
+        def norm(v: str | None) -> str:
+            return " ".join((v or "").split()).casefold()
+
+        if any(norm(k) == norm(text) for k in keep or [] if k):
+            return text
+        row = next(
+            (r for r in cls._rows(kind) if norm(r.get("label")) == norm(text) or norm(r.get("code")) == norm(text)),
+            None,
+        )
+        noun = KIND_NOUN[kind]
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"El {noun} «{text}» no está en el catálogo. Elegí uno de la lista.",
+            )
+        if not row.get("is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"El {noun} «{row['label']}» está desactivado. Elegí otro.",
+            )
+        return row["label"]

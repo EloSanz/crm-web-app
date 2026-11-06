@@ -54,7 +54,8 @@ def list_products(
     summary="Agregar material al catálogo",
 )
 def create_product(data: ProductCreate, authorization: str | None = Header(None)) -> ProductResponse:
-    """Registra un nuevo material o servicio."""
+    """Registra un nuevo material o servicio. Sólo el administrador mantiene el catálogo."""
+    require_roles(authorization, {"admin"})
     return ProductService.create_product(data, **_actor(authorization))
 
 
@@ -93,7 +94,8 @@ def get_product(product_id: UUID) -> ProductResponse:
     summary="Modificar precio o datos de un material",
 )
 def update_product(product_id: UUID, data: ProductUpdate, authorization: str | None = Header(None)) -> ProductResponse:
-    """Actualiza datos comerciales o precios (minorista y mayorista)."""
+    """Actualiza datos comerciales o precios (minorista y mayorista). Sólo el administrador."""
+    require_roles(authorization, {"admin"})
     return ProductService.update_product(product_id, data, **_actor(authorization))
 
 
@@ -103,7 +105,8 @@ def update_product(product_id: UUID, data: ProductUpdate, authorization: str | N
     summary="Baja lógica de un material",
 )
 def delete_product(product_id: UUID, authorization: str | None = Header(None)):
-    """Aplica baja lógica a un material."""
+    """Aplica baja lógica a un material. Sólo el administrador."""
+    require_roles(authorization, {"admin"})
     success = ProductService.delete_product(product_id, **_actor(authorization))
     if not success:
         raise HTTPException(

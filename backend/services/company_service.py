@@ -82,12 +82,26 @@ class CompanyService:
         )
 
     @classmethod
+    def ensure_unique_cuit(cls, cuit: str | None, exclude_id: UUID | None = None) -> None:
+        """No puede haber dos empresas activas con el mismo CUIT. El error no dice de quién es
+        (como en contactos: no se filtra el nombre de otro cliente)."""
+        digits = "".join(ch for ch in (cuit or "") if ch.isdigit())
+        if not digits:
+            return
+        for c in cls.get_companies(limit=1000):
+            if exclude_id and str(c.id) == str(exclude_id):
+                continue
+            if "".join(ch for ch in (c.cuit or "") if ch.isdigit()) == digits:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CUIT ya registrado")
+
+    @classmethod
     def create_company(
         cls,
         data: CompanyCreate,
         created_by: UUID | None = None,
     ) -> CompanyResponse:
         """Crea una nueva empresa contratista."""
+        cls.ensure_unique_cuit(data.cuit)
         now = datetime.now(timezone.utc)
         company_id = uuid4()
         payload = {
@@ -136,6 +150,8 @@ class CompanyService:
         update_payload = data.model_dump(exclude_unset=True)
         if not update_payload:
             return existing
+        if update_payload.get("cuit"):
+            cls.ensure_unique_cuit(update_payload["cuit"], exclude_id=company_id)
 
         now = datetime.now(timezone.utc)
         update_payload["updated_at"] = now.isoformat()

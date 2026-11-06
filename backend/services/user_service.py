@@ -134,9 +134,30 @@ class UserService:
         cls._name_cache = (now, names)
         return names
 
+    # Id → (momento de la consulta, activo o None si no se encontró), para la verificación de sesión.
+    _active_cache: dict[str, tuple[float, bool | None]] = {}
+    ACTIVE_CACHE_SECONDS = 60
+
+    @classmethod
+    def is_active_cached(cls, user_id: str) -> bool | None:
+        """¿El usuario sigue activo? Se consulta como mucho una vez por minuto por usuario, para no
+        pegarle a la base en cada request. None si no se lo encuentra (usuarios fuera de crm_users)."""
+        now = time.monotonic()
+        hit = cls._active_cache.get(str(user_id))
+        if hit and now - hit[0] < cls.ACTIVE_CACHE_SECONDS:
+            return hit[1]
+        try:
+            active: bool | None = cls.get_user(UUID(str(user_id))).is_active
+        except (HTTPException, ValueError):
+            active = None
+        cls._active_cache[str(user_id)] = (now, active)
+        return active
+
     @classmethod
     def _invalidate(cls) -> None:
         cls._name_cache = None
+        # Una baja o reactivación tiene que pesar en la próxima request, sin esperar el minuto de caché.
+        cls._active_cache.clear()
 
     @classmethod
     def _email_taken(cls, email: str, exclude_id: str | None = None) -> bool:

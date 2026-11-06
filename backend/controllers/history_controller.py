@@ -38,6 +38,7 @@ def _page(dossier: dossier_service.Dossier, kind: HistoryKind | None, limit: int
                 title=e.title,
                 detail=dossier_service._clip(e.detail),
                 activity_type=e.activity_type,
+                result=dossier_service._clip(e.result),
                 opportunity_id=e.opportunity_id,
                 opportunity_title=e.opportunity_title,
                 source_id=e.source_id,

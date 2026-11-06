@@ -7,6 +7,8 @@ import clsx from 'clsx';
 import { Boxes, Building2, ClipboardList, CornerDownLeft, HardHat, MapPinned, Palette, Plus, Search } from 'lucide-react';
 import { fetchCompanies, fetchContacts, fetchOpportunities, fetchProducts, fetchProjects } from '@/lib/api';
 import { formatARS, formatARSCents } from '@/lib/format';
+import { useCurrentUser } from '@/lib/useUser';
+import { isAdmin } from '@/lib/roles';
 
 interface Item {
   id: string;
@@ -39,6 +41,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [data, setData] = useState<Item[] | null>(null);
+  const admin = isAdmin(useCurrentUser());
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -112,10 +115,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const results = useMemo(() => {
     const q = norm(query.trim());
-    const pool = [...ACTIONS, ...(data ?? [])];
-    if (!q) return [...ACTIONS.filter((a) => a.group === 'Crear'), ...(data ?? []).filter((i) => i.group === 'Presupuestos').slice(0, 5)];
+    // Alta y edición de materiales es sólo del administrador: el resto va al catálogo (sólo lectura).
+    const actions = admin ? ACTIONS : ACTIONS.filter((a) => a.id !== 'a-m');
+    const items = admin ? (data ?? []) : (data ?? []).map((i) => (i.group === 'Materiales' ? { ...i, href: '/catalog' } : i));
+    const pool = [...actions, ...items];
+    if (!q) return [...actions.filter((a) => a.group === 'Crear'), ...items.filter((i) => i.group === 'Presupuestos').slice(0, 5)];
     return pool.filter((i) => norm(`${i.label} ${i.hint ?? ''} ${i.keywords ?? ''}`).includes(q)).slice(0, 40);
-  }, [query, data]);
+  }, [query, data, admin]);
 
   const go = useCallback(
     (item: Item) => {
