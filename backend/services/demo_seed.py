@@ -219,7 +219,7 @@ def seed(seed_value: int = 20260922) -> dict:
             "cuit": cuit,
             "industry": industry,
             "email": f"compras@{name.split()[0].lower().replace('&', '')}.com.ar",
-            "phone": f"+54 11 4{rng.randint(100, 999)}-{rng.randint(1000, 9999)}",
+            "phone": f"11 4{rng.randint(100, 999)}-{rng.randint(1000, 9999)}",
             "address": rng.choice(["Ramos Mejía", "Morón", "Haedo", "Castelar", "Ituzaingó", "San Martín", "Moreno"]),
             "website": None,
             "status": status,
@@ -249,7 +249,7 @@ def seed(seed_value: int = 20260922) -> dict:
             .replace("é", "e")
             .replace("í", "i")
             .replace("ó", "o"),
-            "phone": f"+54 9 11 {rng.randint(3000, 6999)}-{rng.randint(1000, 9999)}",
+            "phone": f"11 {rng.randint(3000, 6999)}-{rng.randint(1000, 9999)}",
             "job_title": "Particular / Dueño de Obra" if not company else rng.choice(ROLES),
             "status": "cliente" if rng.random() < 0.6 else "potencial",
             "origin": rng.choice(["Vino al local (mostrador)", "Recomendación de otro contratista", "Redes sociales"]),

@@ -141,7 +141,7 @@ class ContactService:
                 if key(other) == value:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail=f"{label} ya registrado en {other.first_name} {other.last_name}",
+                        detail=f"{label} ya registrado",
                     )
 
     @classmethod

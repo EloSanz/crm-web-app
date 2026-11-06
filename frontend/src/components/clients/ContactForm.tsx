@@ -11,6 +11,10 @@ import { useToast } from '@/components/ui/Toast';
 import { ReturnToQuoteDialog } from '@/components/opportunities/ReturnToQuoteDialog';
 import { CLIENT_STATUS, CONTACT_ROLES } from '@/lib/catalogs';
 import { useCatalog, withCurrent } from '@/lib/useCatalogs';
+import { useCurrentUser } from '@/lib/useUser';
+import { isManager } from '@/lib/roles';
+import { AssigneeField } from './AssigneeField';
+import { formatDni, formatPhone, isValidDni } from '@/lib/format';
 
 const STATUS_OPTIONS = (Object.keys(CLIENT_STATUS) as ContactStatus[]).map((s) => ({ value: s, label: CLIENT_STATUS[s].label }));
 
@@ -41,17 +45,25 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
     status: contact?.status ?? 'potencial',
     origin: contact?.origin ?? '',
     notes: contact?.notes ?? '',
+    assigned_to: contact?.assigned_to ?? '',
   });
+  const manager = isManager(useCurrentUser());
   const set = <K extends keyof ContactFormData>(k: K, v: ContactFormData[K]) => setData((d) => ({ ...d, [k]: v }));
   const roleOptions = Array.from(new Set([...CONTACT_ROLES, data.job_title || ''])).filter(Boolean).map((r) => ({ value: r, label: r }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const next = { first: data.first_name.trim() ? undefined : 'Falta el nombre', last: data.last_name.trim() ? undefined : 'Falta el apellido' };
+    const next = {
+      first: data.first_name.trim() ? undefined : 'Falta el nombre',
+      last: data.last_name.trim() ? undefined : 'Falta el apellido',
+      dni: data.document_number && !isValidDni(data.document_number) ? 'Tiene que tener 7 u 8 dígitos' : undefined,
+    };
     setErrors(next);
-    if (next.first || next.last) return;
+    if (next.first || next.last || next.dni) return;
     setSaving(true);
-    const payload = { ...data, company_id: data.company_id || undefined, origin: data.origin || origins[0]?.value };
+    // El responsable sólo lo mandan los managers (el backend lo exige); vacío = cartera libre.
+    const { assigned_to, ...rest } = data;
+    const payload = { ...rest, company_id: data.company_id || undefined, origin: data.origin || origins[0]?.value, ...(manager ? { assigned_to: assigned_to || null } : {}) };
     const fullName = `${data.first_name} ${data.last_name}`;
     try {
       const saved = contact ? await updateContact(contact.id, payload) : await createContact(payload);
@@ -102,12 +114,13 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
               aria-invalid={invalid}
               type="tel"
               inputMode="tel"
+              maxLength={10}
               value={data.phone || ''}
               onChange={(e) => {
-                set('phone', e.target.value);
+                set('phone', formatPhone(e.target.value));
                 setErrors((prev) => ({ ...prev, phone: undefined }));
               }}
-              placeholder="+54 9 11 5566-7788"
+              placeholder="11 5566-7788"
             />
           )}
         </Field>
@@ -133,21 +146,23 @@ export function ContactForm({ contact, companies, presetCompanyId, returnTo }: C
               aria-invalid={invalid}
               inputMode="numeric"
               className="cifra"
+              maxLength={8}
               value={data.document_number || ''}
               onChange={(e) => {
-                set('document_number', e.target.value);
+                set('document_number', formatDni(e.target.value));
                 setErrors((prev) => ({ ...prev, dni: undefined }));
               }}
-              placeholder="32.123.456"
+              placeholder="32123456"
             />
           )}
         </Field>
         <Field label="Estado">
           {({ id }) => <Select id={id} value={data.status} onChange={(v) => set('status', v as ContactStatus)} options={STATUS_OPTIONS} />}
         </Field>
-        <Field label="Origen" className="sm:col-span-2">
+        <Field label="Origen">
           {({ id }) => <Select id={id} value={data.origin || origins[0]?.value || ''} onChange={(v) => set('origin', v)} options={origins} />}
         </Field>
+        <AssigneeField value={data.assigned_to ?? ''} onChange={(v) => set('assigned_to', v)} creating={!contact} />
         <Field label="Notas" className="sm:col-span-2">
           {({ id }) => <Textarea id={id} rows={3} value={data.notes || ''} onChange={(e) => set('notes', e.target.value)} />}
         </Field>
