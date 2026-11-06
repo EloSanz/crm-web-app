@@ -115,7 +115,7 @@ def test_el_endpoint_sigue_recibiendo_el_json_del_body(client: TestClient):
     """El middleware copia el cuerpo sin consumirlo: el endpoint lo recibe completo."""
     payload = {
         "name": "Hormigones del Sur SA",
-        "cuit": "30-71234567-9",
+        "cuit": "30-71234568-7",
         "email": "ventas@hormigonesdelsur.com",
         "notes": "Pide entrega en obra los martes " + "x" * 2000,
     }

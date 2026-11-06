@@ -92,3 +92,14 @@ def test_get_nonexistent_company(client: TestClient):
     fake_id = uuid4()
     res = client.get(f"/api/companies/{fake_id}")
     assert res.status_code == 404
+
+
+def test_duplicate_cuit_is_rejected_without_leaking_the_owner(client):
+    first = client.post("/api/companies", json={"name": "Dueña del CUIT SA", "cuit": "30-71234999-1"})
+    assert first.status_code == 201, first.text
+    dup = client.post("/api/companies", json={"name": "Otra SRL", "cuit": "30712349991"})
+    assert dup.status_code == 409
+    assert "Dueña" not in dup.json()["detail"]
+    # Editarse a sí misma con el mismo CUIT no es duplicado.
+    same = client.put(f"/api/companies/{first.json()['id']}", json={"cuit": "30-71234999-1", "notes": "x"})
+    assert same.status_code == 200, same.text
