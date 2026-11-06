@@ -12,6 +12,8 @@ export interface HistoryEntry {
   detail?: string | null;
   /** Sólo en actividades: llamada, visita_obra, etc. */
   activity_type?: string | null;
+  /** Sólo en actividades: resultado de la interacción. */
+  result?: string | null;
   opportunity_id?: string | null;
   opportunity_title?: string | null;
   source_id?: string | null;

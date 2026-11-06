@@ -122,7 +122,9 @@ def _money(value) -> float:
 
 
 def _amount(opp) -> float:
-    return _money(getattr(opp, "estimated_value", 0))
+    """Monto del presupuesto: en los ganados, el valor final si quedó registrado."""
+    final = getattr(opp, "final_value", None)
+    return _money(final if final is not None else getattr(opp, "estimated_value", 0))
 
 
 def _discount(opp) -> float:

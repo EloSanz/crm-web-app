@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Field';
+import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Select } from '@/components/ui/Select';
 import { DatePicker, toISODate } from '@/components/ui/DatePicker';
 import { Segmented } from '@/components/ui/Segmented';
@@ -62,6 +62,8 @@ interface Draft {
   discountPct?: number;
   /** Origen elegido a mano; null mientras siga el del cliente. */
   origin?: string | null;
+  /** Observaciones del presupuesto. */
+  notes?: string;
 }
 
 function readDraft(): Draft | null {
@@ -141,6 +143,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
   const [discountPct, setDiscountPct] = useState(preset.discountPct ?? 0);
   // null = sigue el origen del cliente elegido; al tocarlo queda el que eligió el vendedor.
   const [originOverride, setOriginOverride] = useState<string | null>(preset.origin ?? null);
+  const [notes, setNotes] = useState(preset.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ client?: string; title?: string }>({});
 
@@ -171,7 +174,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
 
   /** Guarda lo cargado y va al alta de obra o contacto; al terminar vuelve acá con lo nuevo elegido. */
   const goCreate = (kind: 'obra' | 'contacto') => {
-    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items, discountPct, origin: originOverride };
+    const draft: Draft = { clientType, companyId, contactId, pointContactId, assignedTo, projectId, delivery, title, stageId, closeDate, items, discountPct, origin: originOverride, notes };
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
@@ -207,6 +210,7 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
         discount_pct: discountPct,
         // "" = sin origen a propósito (si no se manda, el backend toma el del cliente).
         origin,
+        notes: notes.trim() || undefined,
         items,
       });
       try {
@@ -384,6 +388,22 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
               <Block title="Materiales">
                 <QuoteItemsEditor products={data.products} items={items} onChange={setItems} discountPct={discountPct} onDiscountChange={setDiscountPct} />
               </Block>
+
+              <Block title="Observaciones">
+                <Field label="Observaciones del presupuesto" hint="Condiciones, plazos o aclaraciones para el cliente. Opcional.">
+                  {({ id, describedBy }) => (
+                    <Textarea
+                      id={id}
+                      aria-describedby={describedBy}
+                      rows={3}
+                      maxLength={4000}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ej.: precio sostenido por 7 días; descarga con hidrogrúa a cargo del cliente"
+                    />
+                  )}
+                </Field>
+              </Block>
               <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
             </form>
 
@@ -435,6 +455,12 @@ function QuoteBuilder({ data }: { data: QuoteData }) {
                     <span className="font-semibold">Total</span>
                     <span className="cifra titular min-w-0 truncate text-[28px]">{formatARS(totals.total)}</span>
                   </div>
+                  {notes.trim() && (
+                    <div className="border-t border-dashed border-linea-fuerte pt-3">
+                      <p className="text-[13px] font-semibold text-tiza">Observaciones</p>
+                      <p className="mt-0.5 line-clamp-4 whitespace-pre-line text-sm break-words">{notes.trim()}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-linea bg-chapa-2 p-4">
                   <Button size="lg" className="w-full" isLoading={saving} onClick={save}>

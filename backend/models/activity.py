@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 
 class ActivityType(str, Enum):
@@ -43,7 +44,8 @@ class ActivityBase(BaseModel):
         description="Código del tipo de interacción (catálogo de tipos de actividad)",
     )
     summary: str = Field(..., min_length=2, max_length=255, description="Título o resumen breve de la interacción")
-    description: str | None = Field(None, description="Detalle extendido o resultado de la conversación")
+    description: str | None = Field(None, description="Detalle extendido de la interacción")
+    result: str | None = Field(None, description="Resultado de la interacción (qué se logró o acordó)")
     activity_date: datetime = Field(default_factory=datetime.utcnow, description="Fecha y hora en que ocurrió el hecho")
     attachments: list[ActivityAttachment] = Field(default_factory=list, description="Archivos adjuntos (URLs en S3)")
 
@@ -56,8 +58,25 @@ class ActivityBase(BaseModel):
         return value.strip().lower() if isinstance(value, str) else value
 
 
+# Margen para relojes desfasados entre el navegador y el servidor.
+FUTURE_TOLERANCE = timedelta(minutes=5)
+
+
 class ActivityCreate(ActivityBase):
-    pass
+    description: str | None = Field(None, max_length=4000, description="Detalle extendido de la interacción")
+    result: str | None = Field(None, max_length=1000, description="Resultado de la interacción")
+
+    @field_validator("activity_date")
+    @classmethod
+    def not_in_future(cls, value: datetime) -> datetime:
+        """La actividad es un hecho que ya ocurrió (regla 8: fecha real): no puede tener fecha futura."""
+        aware = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if aware > datetime.now(timezone.utc) + FUTURE_TOLERANCE:
+            # Error propio: el mensaje llega al usuario tal cual (sin el «Value error,» de Pydantic).
+            raise PydanticCustomError(
+                "fecha_futura", "La fecha de la actividad no puede ser futura: registrá un hecho que ya ocurrió."
+            )
+        return value
 
 
 class ActivityResponse(ActivityBase):

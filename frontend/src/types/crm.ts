@@ -154,6 +154,10 @@ export interface Opportunity {
   closed_at?: string | null;
   /** Origen propio del presupuesto (se precarga con el del cliente). */
   origin?: string | null;
+  /** Observaciones del presupuesto (condiciones, aclaraciones). */
+  notes?: string | null;
+  /** Valor final de la venta concretada; el total presupuestado (estimated_value) no se pisa. */
+  final_value?: number | null;
   items: OpportunityItem[];
   // North Star Metric (NSM)
   last_activity_at?: string | null;
@@ -196,6 +200,8 @@ export interface Activity {
   activity_type: ActivityType;
   summary: string;
   description?: string | null;
+  /** Resultado de la interacción (qué se logró o acordó). */
+  result?: string | null;
   activity_date: string;
   attachments?: ActivityAttachment[];
   created_at: string;
@@ -208,6 +214,7 @@ export interface ActivityFormData {
   activity_type: ActivityType;
   summary: string;
   description?: string | null;
+  result?: string | null;
   activity_date?: string;
   attachments?: ActivityAttachment[];
 }
@@ -329,6 +336,7 @@ export interface OpportunityCreateData {
   delivery_location?: string | null;
   discount_pct?: number;
   origin?: string | null;
+  notes?: string | null;
   items: OpportunityItemCreateData[];
 }
 
@@ -349,6 +357,9 @@ export interface OpportunityUpdateData {
   /** Motivo del cambio de materiales; queda guardado en la versión. */
   version_note?: string | null;
   origin?: string | null;
+  notes?: string | null;
+  /** Valor final al concretar la venta (si falta, el backend toma el total vigente). */
+  final_value?: number;
   /** Obligatorio para reabrir un presupuesto cerrado; queda en el historial. */
   reopen_reason?: string | null;
 }

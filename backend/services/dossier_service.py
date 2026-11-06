@@ -85,6 +85,14 @@ class Entry:
     ref: str = ""
     # Tipo de actividad (llamada, visita_obra…) para que el historial muestre su ícono.
     activity_type: str | None = None
+    # Resultado de la actividad (qué se logró o acordó), aparte del detalle.
+    result: str | None = None
+
+    @property
+    def detail_with_result(self) -> str | None:
+        """Detalle y resultado juntos (para el asistente y las citas)."""
+        parts = [p for p in (self.detail, f"Resultado: {self.result}" if self.result else None) if p]
+        return "\n".join(parts) or None
 
     def citation(self, company_id: UUID | None) -> dict:
         if self.opportunity_id:
@@ -100,7 +108,7 @@ class Entry:
             "kind_label": KIND_LABEL.get(self.kind, self.kind),
             "at": self.at.isoformat(),
             "title": self.title,
-            "detail": _clip(self.detail, 300),
+            "detail": _clip(self.detail_with_result, 300),
             "opportunity_id": str(self.opportunity_id) if self.opportunity_id else None,
             "opportunity_title": self.opportunity_title,
             "source_id": self.source_id,
@@ -154,6 +162,10 @@ def _opportunity_entries(opp: OpportunityResponse) -> list[Entry]:
         f"Etapa: {stage_of(opp)}",
         f"Total: {_money(opp.estimated_value)}",
     ]
+    if opp.final_value is not None:
+        header.append(f"Valor final: {_money(opp.final_value)}")
+    if opp.notes:
+        header.append(f"Observaciones: {_clip(opp.notes, 400)}")
     if float(opp.discount_pct or 0) > 0:
         header.append(f"Descuento general: {float(opp.discount_pct):g} %")
     if opp.assigned_to_name:
@@ -211,6 +223,7 @@ def _activity_entry(a: ActivityResponse, **extra) -> Entry:
         at=_aware(a.activity_date),
         title=f"{ACTIVITY_LABEL.get(a.activity_type, a.activity_type)}: {a.summary}",
         detail=a.description,
+        result=a.result,
         source_id=str(a.id),
         user_name=a.user_name,
         activity_type=a.activity_type,
@@ -377,7 +390,7 @@ def render(dossier: Dossier) -> str:
         if e.user_name:
             head += f" · {e.user_name}"
         lines.append(head)
-        detail = _clip(e.detail)
+        detail = _clip(e.detail_with_result)
         if detail:
             lines.append("    " + detail.replace("\n", "\n    "))
     return "\n".join(lines)

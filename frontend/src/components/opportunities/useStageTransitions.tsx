@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast';
 import { LostDialog, WinDialog } from './CloseDialogs';
 
 /**
- * Mover un presupuesto de etapa. Pasar a "Venta concretada" pide el valor final;
+ * Mover un presupuesto de etapa. Pasar a "Venta concretada" pide el valor final (sin pisar el presupuestado);
  * pasar a "Perdida" pide el motivo. El resto se guarda directo.
  */
 export function useStageTransitions(
@@ -57,7 +57,8 @@ export function useStageTransitions(
           onConfirm={(value) =>
             run(
               winOpp.opp.id,
-              { stage_id: winOpp.stageId, status: 'ganada', estimated_value: value },
+              // El total presupuestado queda como estaba; el valor de la venta va aparte.
+              { stage_id: winOpp.stageId, status: 'ganada', final_value: value },
               '¡Venta concretada!',
               winOpp.opp.title
             )
