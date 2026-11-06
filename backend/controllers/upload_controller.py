@@ -1,8 +1,9 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile, status
 
+from backend.controllers.permissions import require_roles
 from backend.services.storage_service import storage_service
 
 logger = logging.getLogger(__name__)
@@ -100,10 +101,13 @@ async def upload_activity_attachment(file: UploadFile = File(...)) -> dict[str, 
 
 @router.delete(
     "/{storage_key:path}",
-    summary="Eliminar archivo o imagen de S3",
+    summary="Eliminar archivo o imagen de S3 (sólo administrador)",
 )
-def delete_file_from_storage(storage_key: str) -> dict[str, Any]:
-    """Elimina el archivo físico de S3 usando su storage_key."""
+def delete_file_from_storage(storage_key: str, authorization: str | None = Header(None)) -> dict[str, Any]:
+    """Elimina el archivo físico de S3 usando su storage_key. Es un borrado físico que puede dejar sin
+    respaldo adjuntos del historial (invariante de no borrar), por eso queda sólo para el administrador.
+    El frontend no lo usa: un adjunto que se quita antes de guardar se descarta sólo en pantalla."""
+    require_roles(authorization, {"admin"})
     success = storage_service.delete_image(storage_key)
     if not success:
         raise HTTPException(

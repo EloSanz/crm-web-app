@@ -240,6 +240,8 @@ def test_origin_defaults_to_client_origin_and_is_editable(client: TestClient):
 def test_list_filters_by_status_origin_and_assignee(client: TestClient):
     tag = datetime.now().timestamp()
     origin = f"Origen filtro {tag}"
+    # El origen tiene que estar en el catálogo: se da de alta uno único para aislar el filtro.
+    assert client.post("/api/catalogs", json={"kind": "origin", "label": origin}).status_code == 201
     mine = _new_opp(client, assigned_to=VENDEDOR_ID, origin=origin, title=f"Filtro vendedor {tag}")
     theirs = _new_opp(client, assigned_to=GERENTE_ID, origin=origin, title=f"Filtro gerente {tag}")
     client.put(f"/api/opportunities/{theirs['id']}", json={"stage_id": _stages()["won"], "status": "ganada"})

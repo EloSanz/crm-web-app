@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ProductForm } from '@/components/catalog/ProductForm';
+import { RequireRole } from '@/components/users/RequireRole';
 import type { ProductCategory } from '@/types/crm';
 import { PRODUCT_CATEGORIES } from '@/lib/catalogs';
 
@@ -15,10 +16,13 @@ export default function NewProductPage() {
   });
   return (
     <AppLayout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <PageHeader back={{ href: '/catalog', label: 'Catálogo' }} title="Nuevo material" />
-        <ProductForm presetCategory={preset} />
-      </div>
+      {/* Sólo el administrador da de alta materiales. */}
+      <RequireRole role="admin">
+        <div className="mx-auto max-w-3xl space-y-6">
+          <PageHeader back={{ href: '/catalog', label: 'Catálogo' }} title="Nuevo material" />
+          <ProductForm presetCategory={preset} />
+        </div>
+      </RequireRole>
     </AppLayout>
   );
 }

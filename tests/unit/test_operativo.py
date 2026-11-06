@@ -41,11 +41,14 @@ def test_vendedor_only_sees_and_touches_own_quotes(client: TestClient):
         },
     ).json()
 
+    # Cliente de la cartera libre: la constructora de arriba ya la trabaja otro vendedor.
+    free = _company(client, "Constructora Libre SRL")
+
     with _client_as(VENDEDOR_ID, "ejecutivo_ventas", "Ejecutivo Comercial") as vendedor:
         # Aunque mande otro responsable, queda asignado a quien lo crea.
         mine = vendedor.post(
             "/api/opportunities",
-            json={"title": "Mío", "company_id": company, "assigned_to": OTRO_VENDEDOR_ID, "stage_id": stage["id"]},
+            json={"title": "Mío", "company_id": free, "assigned_to": OTRO_VENDEDOR_ID, "stage_id": stage["id"]},
         )
         assert mine.status_code == 201
         assert mine.json()["assigned_to"] == VENDEDOR_ID

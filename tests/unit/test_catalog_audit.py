@@ -12,6 +12,8 @@ from backend.services.catalog_audit_service import diff_fields
 ADMIN_ID = "00000000-0000-0000-0000-000000000001"
 VENDEDOR_ID = "00000000-0000-0000-0000-000000000002"
 GERENTE_ID = "00000000-0000-0000-0000-000000000003"
+# Segunda cuenta de administrador: sólo el administrador mantiene el catálogo.
+OTRA_ADMIN_ID = "00000000-0000-0000-0000-0000000000a2"
 
 
 def _client_as(user_id: str, role: str, name: str) -> TestClient:
@@ -88,25 +90,25 @@ def test_update_without_real_changes_is_not_recorded(client: TestClient):
 
 def test_delete_records_baja_with_acting_user(client: TestClient):
     product = _new_material(client)
-    with _client_as(GERENTE_ID, "gerente_comercial", "Responsable Comercial") as gerente:
-        assert gerente.delete(f"/api/products/{product['id']}").status_code == 204
+    with _client_as(OTRA_ADMIN_ID, "admin", "Segunda Administradora") as otra:
+        assert otra.delete(f"/api/products/{product['id']}").status_code == 204
 
     entries = _history(client, product["id"])
     assert entries[0]["action"] == "baja"
-    assert entries[0]["user_id"] == GERENTE_ID
-    assert entries[0]["user_name"] == "Responsable Comercial"
+    assert entries[0]["user_id"] == OTRA_ADMIN_ID
+    assert entries[0]["user_name"] == "Segunda Administradora"
     assert entries[0]["product_name"] == product["name"]
 
 
 def test_audit_filters_by_user_and_text(client: TestClient):
     code = f"FIL-{uuid4().hex[:6]}"
-    with _client_as(VENDEDOR_ID, "ejecutivo_ventas", "Ejecutivo Comercial") as vendedor:
-        product = _new_material(vendedor, code=code)
+    with _client_as(OTRA_ADMIN_ID, "admin", "Segunda Administradora") as otra:
+        product = _new_material(otra, code=code)
 
-    res = client.get(f"/api/products/audit?user_id={VENDEDOR_ID}")
+    res = client.get(f"/api/products/audit?user_id={OTRA_ADMIN_ID}")
     assert res.status_code == 200
     assert res.json()
-    assert all(e["user_id"] == VENDEDOR_ID for e in res.json())
+    assert all(e["user_id"] == OTRA_ADMIN_ID for e in res.json())
     assert any(e["product_id"] == product["id"] for e in res.json())
 
     res = client.get(f"/api/products/audit?q={code.lower()}")
