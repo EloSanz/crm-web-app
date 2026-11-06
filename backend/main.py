@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.audit_middleware import AuditMiddleware
 from backend.config import settings
 from backend.controllers import (
     activity_controller,
     ai_controller,
+    audit_controller,
     auth_controller,
     catalog_controller,
     company_controller,
@@ -122,6 +124,9 @@ async def require_api_key_and_auth(request, call_next):
     return await call_next(request)
 
 
+# Auditoría de cambios (regla 15): quién hizo cada POST/PUT/PATCH/DELETE exitoso.
+app.add_middleware(AuditMiddleware)
+
 # Registro de Controladores
 app.include_router(health_controller.router)
 app.include_router(auth_controller.router)
@@ -141,6 +146,7 @@ app.include_router(message_controller.router)
 app.include_router(ai_controller.router)
 app.include_router(gmail_controller.router)
 app.include_router(dev_controller.router)
+app.include_router(audit_controller.router)
 
 
 if __name__ == "__main__":

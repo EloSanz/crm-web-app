@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import clsx from 'clsx';
-import { Boxes, ChartLine, ClipboardList, Home, MapPinned, Search, Settings2, ShieldCheck, Users, UsersRound } from 'lucide-react';
+import { Boxes, ChartLine, ClipboardList, Home, MapPinned, ScrollText, Search, Settings2, ShieldCheck, Users, UsersRound } from 'lucide-react';
 import { clearStoredAuth, useCurrentUser } from '@/lib/useUser';
 import { buildApiUrl, getAuthHeaders } from '@/lib/api';
 import { isAdmin, isManager } from '@/lib/roles';
@@ -20,10 +20,11 @@ const NAV = [
   { label: 'Catálogo', href: '/catalog', icon: Boxes, match: (p: string) => p.startsWith('/catalog') },
 ];
 
-/** Secciones de gestión: el responsable comercial ve el equipo; el administrador, además, los usuarios. */
+/** Secciones de gestión: el responsable comercial ve el equipo, los indicadores y la auditoría; el administrador, además, los usuarios. */
 export const MANAGE_NAV = [
   { label: 'Equipo', href: '/equipo', icon: UsersRound, match: (p: string) => p.startsWith('/equipo'), role: 'manager' as const },
   { label: 'Indicadores', href: '/indicadores', icon: ChartLine, match: (p: string) => p.startsWith('/indicadores'), role: 'manager' as const },
+  { label: 'Auditoría', href: '/auditoria', icon: ScrollText, match: (p: string) => p.startsWith('/auditoria'), role: 'manager' as const },
   { label: 'Usuarios', href: '/usuarios', icon: ShieldCheck, match: (p: string) => p.startsWith('/usuarios'), role: 'admin' as const },
   { label: 'Configuración', href: '/configuracion', icon: Settings2, match: (p: string) => p.startsWith('/configuracion'), role: 'admin' as const },
 ];
