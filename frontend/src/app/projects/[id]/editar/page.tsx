@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { ProjectForm } from '@/components/projects/ProjectForm';
 import { fetchCompanies, fetchContacts, fetchProject } from '@/lib/api';
@@ -23,7 +24,12 @@ export default function EditProjectPage() {
         {loading ? (
           <LoadingBlock label="Cargando" />
         ) : error || !data ? (
-          <EmptyState illustration="obra" title="No encontramos la obra" />
+          <EmptyState
+            illustration="obra"
+            title="No pudimos abrir la obra"
+            description={error ?? undefined}
+            action={<ButtonLink href="/projects" variant="secundario">Volver a obras</ButtonLink>}
+          />
         ) : (
           <ProjectForm project={data.project} companies={data.companies} contacts={data.contacts} />
         )}
