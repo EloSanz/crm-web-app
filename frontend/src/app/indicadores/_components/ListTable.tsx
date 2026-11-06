@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useId, useState } from 'react';
+import React, { useId, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/lib/usePagination';
 
 interface ListTableProps<T extends object> {
   title: string;
@@ -42,13 +44,13 @@ export function ListTable<T extends object>({
   alignRight,
   grow,
   emptyText,
-  pageSize = 10,
+  pageSize,
   action,
 }: ListTableProps<T>) {
   const router = useRouter();
   const headingId = useId();
-  const [all, setAll] = useState(false);
-  const visible = all ? rows : rows.slice(0, 8);
+  const paged = usePagination(rows, { pageSize });
+  const listRef = useRef<HTMLDivElement>(null);
 
   return (
     <section aria-labelledby={headingId} className="space-y-3">
@@ -77,9 +79,9 @@ export function ListTable<T extends object>({
         {rows.length === 0 ? (
           <p className="rounded-2xl border border-linea bg-chapa px-5 py-8 text-center text-[15px] text-tiza">{emptyText}</p>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
+          <div ref={listRef} className="scroll-mt-24 overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave">
             <ul className="divide-y divide-linea" aria-label={title}>
-              {visible.map((row) => (
+              {paged.pageItems.map((row) => (
                 <li key={rowKey(row)}>
                   {href ? (
                     <Link href={href(row)} aria-label={rowLabel(row)} className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-chapa-2">
@@ -92,15 +94,7 @@ export function ListTable<T extends object>({
                 </li>
               ))}
             </ul>
-            {rows.length > 8 && (
-              <button
-                type="button"
-                onClick={() => setAll((v) => !v)}
-                className="flex h-11 w-full items-center justify-center border-t border-linea text-sm font-semibold text-tiza transition-colors hover:bg-chapa-2 hover:text-tinta cursor-pointer"
-              >
-                {all ? 'Mostrar menos' : `Mostrar los ${rows.length}`}
-              </button>
-            )}
+            <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="border-t border-linea px-4 py-3 sm:px-5" />
           </div>
         )}
       </div>

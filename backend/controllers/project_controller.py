@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 
+from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.models.project import (
     ProjectCreate,
     ProjectResponse,
@@ -25,7 +26,7 @@ def list_projects(
     status: ProjectStatus | None = Query(None, description="Filtrar por estado operativo de la obra"),
     project_type: ProjectType | None = Query(None, description="Filtrar por tipo de obra"),
     q: str | None = Query(None, description="Buscar por nombre o dirección de la obra"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(LIST_DEFAULT_LIMIT, ge=1, le=LIST_MAX_LIMIT),
     offset: int = Query(0, ge=0),
 ) -> list[ProjectResponse]:
     """Retorna las obras en curso, pausadas o planificadas con su locación de entrega."""

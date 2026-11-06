@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createColumnHelper } from '@tanstack/react-table';
@@ -8,6 +8,8 @@ import type { Opportunity, Stage } from '@/types/crm';
 import { Punta, HealthChip } from '@/components/punta/Punta';
 import { Chip } from '@/components/ui/Chip';
 import { DataTable, type TableSetup } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/lib/usePagination';
 import { healthOf } from '@/lib/health';
 import { formatARS, sentenceCase } from '@/lib/format';
 
@@ -25,6 +27,8 @@ export function OpportunityList({ opportunities, stages }: { opportunities: Oppo
     () => [...opportunities].sort((a, b) => followUpKey(b) - followUpKey(a) || Number(b.estimated_value) - Number(a.estimated_value)),
     [opportunities]
   );
+  const paged = usePagination(sorted);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const columns = useMemo(() => {
     const position = new Map(stages.map((s) => [s.id, s.position]));
@@ -83,30 +87,33 @@ export function OpportunityList({ opportunities, stages }: { opportunities: Oppo
 
   return (
     <>
-      <ul className="divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave xl:hidden">
-        {sorted.map((o) => (
-          <li key={o.id} className="relative flex items-center gap-3 px-4 py-2.5">
-            <Punta health={healthOf(o)} status={o.status} size={16} />
-            <div className="min-w-0 flex-1">
-              <Link href={`/opportunities/${o.id}`} className="block truncate text-[15px] font-bold leading-tight after:absolute after:inset-0">
-                {o.title}
-              </Link>
-              <p className="truncate text-[13px] leading-tight text-tiza">
-                {o.company_name || o.contact_name || 'Sin cliente'}
-                <span className="hidden md:inline"> · {stageName.get(o.stage_id) ?? '—'}</span>
-              </p>
-            </div>
-            <span className="hidden w-32 shrink-0 md:block">
-              {o.status === 'abierta' ? (
-                <HealthChip health={healthOf(o)} days={o.days_since_last_activity} compact />
-              ) : (
-                <Chip tone={o.status === 'ganada' ? 'verde' : 'neutro'}>{o.status === 'ganada' ? 'Vendido' : 'Perdido'}</Chip>
-              )}
-            </span>
-            <span className="cifra shrink-0 text-right text-[15px] font-extrabold md:w-32">{formatARS(o.estimated_value)}</span>
-          </li>
-        ))}
-      </ul>
+      <div ref={listRef} className="scroll-mt-24 overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave xl:hidden">
+        <ul className="divide-y divide-linea">
+          {paged.pageItems.map((o) => (
+            <li key={o.id} className="relative flex items-center gap-3 px-4 py-2.5">
+              <Punta health={healthOf(o)} status={o.status} size={16} />
+              <div className="min-w-0 flex-1">
+                <Link href={`/opportunities/${o.id}`} className="block truncate text-[15px] font-bold leading-tight after:absolute after:inset-0">
+                  {o.title}
+                </Link>
+                <p className="truncate text-[13px] leading-tight text-tiza">
+                  {o.company_name || o.contact_name || 'Sin cliente'}
+                  <span className="hidden md:inline"> · {stageName.get(o.stage_id) ?? '—'}</span>
+                </p>
+              </div>
+              <span className="hidden w-32 shrink-0 md:block">
+                {o.status === 'abierta' ? (
+                  <HealthChip health={healthOf(o)} days={o.days_since_last_activity} compact />
+                ) : (
+                  <Chip tone={o.status === 'ganada' ? 'verde' : 'neutro'}>{o.status === 'ganada' ? 'Vendido' : 'Perdido'}</Chip>
+                )}
+              </span>
+              <span className="cifra shrink-0 text-right text-[15px] font-extrabold md:w-32">{formatARS(o.estimated_value)}</span>
+            </li>
+          ))}
+        </ul>
+        <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="border-t border-linea px-4 py-3 sm:px-5" />
+      </div>
       <div className="hidden xl:block">
         <DataTable
           data={opportunities}
@@ -114,7 +121,6 @@ export function OpportunityList({ opportunities, stages }: { opportunities: Oppo
           initialSort={[{ id: 'seguimiento', desc: true }]}
           dense
           grow="title"
-          pageSize={15}
           caption="Presupuestos"
           alignRight={['monto']}
           onRowClick={(o) => router.push(`/opportunities/${o.id}`)}

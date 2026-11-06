@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
+from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.controllers.permissions import (
     authorize_contact,
     client_scope,
@@ -36,7 +37,7 @@ def list_contacts(
     company_id: UUID | None = Query(None, description="Filtrar por empresa vinculada"),
     status: ContactStatus | None = Query(None, description="Filtrar por estado comercial"),
     q: str | None = Query(None, description="Búsqueda por nombre, apellido o email"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(LIST_DEFAULT_LIMIT, ge=1, le=LIST_MAX_LIMIT),
     offset: int = Query(0, ge=0),
     authorization: str | None = Header(None),
 ) -> list[ContactResponse]:

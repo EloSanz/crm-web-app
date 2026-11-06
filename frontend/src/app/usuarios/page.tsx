@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createColumnHelper } from '@tanstack/react-table';
 import { Pencil, Plus, Search, UserCheck, UserX } from 'lucide-react';
@@ -11,6 +11,8 @@ import { SearchInput } from '@/components/ui/Field';
 import { Chip } from '@/components/ui/Chip';
 import { Menu } from '@/components/ui/Menu';
 import { DataTable, type TableSetup } from '@/components/ui/DataTable';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/lib/usePagination';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { RequireRole } from '@/components/users/RequireRole';
@@ -55,6 +57,10 @@ function UsersList() {
     const q = search.trim().toLowerCase();
     return (data ?? []).filter((u) => !q || `${u.full_name} ${u.email}`.toLowerCase().includes(q));
   }, [data, search]);
+  // En el celular la lista se ordena por nombre, igual que la tabla de escritorio.
+  const sortedUsers = useMemo(() => [...users].sort((a, b) => a.full_name.localeCompare(b.full_name, 'es')), [users]);
+  const paged = usePagination(sortedUsers, { resetKey: search });
+  const listRef = useRef<HTMLDivElement>(null);
 
   const actions = (u: CrmUser) => (
     <Menu
@@ -127,22 +133,25 @@ function UsersList() {
         <EmptyState illustration="clientes" title="Sin resultados" />
       ) : (
         <>
-          <ul className="divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave xl:hidden">
-            {users.map((u) => (
-              <li key={u.id} className="flex items-center gap-3 px-4 py-3.5">
-                <span className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full bg-pavonado text-sm font-bold text-white">{initials(u.full_name)}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 font-bold leading-snug">{u.full_name}</p>
-                  <p className="truncate text-sm text-tiza">
-                    {ROLE_LABELS[u.role]} · {u.is_active ? 'Activo' : 'De baja'}
-                  </p>
-                </div>
-                {actions(u)}
-              </li>
-            ))}
-          </ul>
+          <div ref={listRef} className="scroll-mt-24 overflow-hidden rounded-2xl border border-linea bg-chapa shadow-suave xl:hidden">
+            <ul className="divide-y divide-linea">
+              {paged.pageItems.map((u) => (
+                <li key={u.id} className="flex items-center gap-3 px-4 py-3.5">
+                  <span className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full bg-pavonado text-sm font-bold text-white">{initials(u.full_name)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 font-bold leading-snug">{u.full_name}</p>
+                    <p className="truncate text-sm text-tiza">
+                      {ROLE_LABELS[u.role]} · {u.is_active ? 'Activo' : 'De baja'}
+                    </p>
+                  </div>
+                  {actions(u)}
+                </li>
+              ))}
+            </ul>
+            <Pagination {...paged} onChange={paged.setPage} anchorRef={listRef} className="border-t border-linea px-4 py-3 sm:px-5" />
+          </div>
           <div className="hidden xl:block">
-            <DataTable data={users} columns={columns} caption="Usuarios del CRM" initialSort={[{ id: 'full_name', desc: false }]} />
+            <DataTable data={users} columns={columns} caption="Usuarios del CRM" initialSort={[{ id: 'full_name', desc: false }]} resetKey={search} />
           </div>
         </>
       )}
