@@ -2,65 +2,16 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import {
-  ArrowUp,
-  CircleDot,
-  ClipboardList,
-  FileText,
-  Flag,
-  ImageIcon,
-  Layers,
-  Loader2,
-  Mail,
-  MapPin,
-  MessageSquare,
-  Paperclip,
-  Phone,
-  Store,
-  Users,
-  X,
-} from 'lucide-react';
-import type { Activity, ActivityAttachment, ActivityType, Contact, Opportunity, SystemActivityType, TimelineEvent } from '@/types/crm';
-import { createActivity, uploadAttachment } from '@/lib/api';
-import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Field';
-import { Select } from '@/components/ui/Select';
-import { DatePicker, toISODate } from '@/components/ui/DatePicker';
-import { useToast } from '@/components/ui/Toast';
-import { useCatalog } from '@/lib/useCatalogs';
+import { ArrowUp, FileText, Flag, ImageIcon, Layers, Loader2 } from 'lucide-react';
+import type { Activity, ActivityAttachment, Contact, Opportunity, SystemActivityType, TimelineEvent } from '@/types/crm';
 import { formatARSCompact } from '@/lib/format';
-import { AttachmentViewer, formatBytes, isImage } from './AttachmentViewer';
+import { AttachmentViewer, isImage } from './AttachmentViewer';
+import { ActivityForm } from './ActivityForm';
+import { ACTIVITY_ICON, DEFAULT_ACTIVITY_ICON } from './activityIcons';
 
-type IconType = React.ComponentType<{ className?: string }>;
-
-export const ACTIVITY_ICON: Record<SystemActivityType, IconType> = {
-  llamada: Phone,
-  whatsapp: MessageSquare,
-  visita_obra: MapPin,
-  mostrador: Store,
-  email: Mail,
-  presupuesto: ClipboardList,
-  reunion: Users,
-  nota: FileText,
-};
-
-/** Los tipos que agrega el administrador desde Configuración usan este ícono genérico. */
-export const DEFAULT_ACTIVITY_ICON: IconType = CircleDot;
-
-const PLACEHOLDER: Record<SystemActivityType, string> = {
-  llamada: 'Llamada: ¿qué se habló?',
-  whatsapp: 'WhatsApp: ¿qué respondió?',
-  visita_obra: 'Visita a la obra: ¿qué viste?',
-  mostrador: 'En el local: ¿qué pidió?',
-  email: 'Correo: ¿qué se envió?',
-  presupuesto: 'Envío del presupuesto: ¿por dónde?',
-  reunion: 'Reunión: ¿qué se acordó?',
-  nota: 'Nota interna',
-};
+export { ACTIVITY_ICON, DEFAULT_ACTIVITY_ICON };
 
 const STEP = 8;
-const MAX_MB = 10;
-const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
 
 const TIME = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
 const DAY = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
@@ -73,13 +24,6 @@ function dayLabel(d: Date): string {
   if (d.toDateString() === today.toDateString()) return 'Hoy';
   if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
   return (d.getFullYear() === today.getFullYear() ? DAY : DAY_YEAR).format(d).replace('.', '');
-}
-
-interface Pending {
-  key: string;
-  file: File;
-  status: 'subiendo' | 'listo' | 'error';
-  result?: ActivityAttachment;
 }
 
 type Entry = { key: string; at: Date; order: number } & ({ kind: 'actividad'; activity: Activity } | { kind: 'hito'; event: TimelineEvent });
@@ -96,24 +40,11 @@ interface ActivityLogProps {
 
 /** Seguimiento: registrar lo que pasó (con quién, cuándo y con archivos) y recorrer el historial con sus hitos. */
 export function ActivityLog({ opp, activities, events = [], contacts, onSaved, onShowVersions }: ActivityLogProps) {
-  const toast = useToast();
-  const [type, setType] = useState<ActivityType>('llamada');
-  // Tipos activos en el orden de Configuración.
-  const activityTypes = useCatalog('activity_type');
-  const typeLabel = activityTypes.find((t) => t.code === type)?.label;
-  const [summary, setSummary] = useState('');
-  const [contactId, setContactId] = useState(opp.contact_id ?? '');
-  const [date, setDate] = useState(() => toISODate(new Date()));
-  const [pending, setPending] = useState<Pending[]>([]);
-  const [dragOver, setDragOver] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [shown, setShown] = useState(STEP);
   const [away, setAway] = useState(false);
   const [viewing, setViewing] = useState<{ files: ActivityAttachment[]; index: number } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const today = toISODate(new Date());
 
   // Todo junto, del más nuevo al más viejo: lo registrado y los hitos (etapas, versiones).
   const entries = useMemo<Entry[]>(() => {
@@ -152,7 +83,6 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
     const c = id ? contacts.find((x) => x.id === id) : null;
     return c ? `${c.first_name} ${c.last_name}` : null;
   };
-  const uploading = pending.some((p) => p.status === 'subiendo');
 
   // Carga progresiva al llegar al final del historial (scroll propio de la lista).
   useEffect(() => {
@@ -166,53 +96,11 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
 
   const toLatest = () => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
 
-  const addFiles = (list: FileList | File[]) => {
-    for (const file of Array.from(list)) {
-      if (!ACCEPT.split(',').includes(file.type)) {
-        toast.warning('Formato no admitido', `${file.name}: subí fotos (JPG, PNG, WEBP) o PDF.`);
-        continue;
-      }
-      if (file.size > MAX_MB * 1024 * 1024) {
-        toast.warning('Archivo muy pesado', `${file.name} supera ${MAX_MB} MB.`);
-        continue;
-      }
-      const key = `${file.name}-${file.size}-${Date.now()}-${Math.random()}`;
-      setPending((prev) => [...prev, { key, file, status: 'subiendo' }]);
-      uploadAttachment(file)
-        .then((result) => setPending((prev) => prev.map((p) => (p.key === key ? { ...p, status: 'listo', result } : p))))
-        .catch((err) => {
-          setPending((prev) => prev.map((p) => (p.key === key ? { ...p, status: 'error' } : p)));
-          toast.error('No se pudo subir el archivo', err instanceof Error ? err.message : file.name);
-        });
-    }
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (summary.trim().length < 2 || uploading) return;
-    setSaving(true);
-    try {
-      const when = !date || date === today ? new Date() : new Date(`${date}T12:00:00`);
-      await createActivity({
-        opportunity_id: opp.id,
-        company_id: opp.company_id || undefined,
-        contact_id: contactId || opp.contact_id || undefined,
-        activity_type: type,
-        summary: summary.trim(),
-        activity_date: when.toISOString(),
-        attachments: pending.filter((p) => p.status === 'listo' && p.result).map((p) => p.result as ActivityAttachment),
-      });
-      setSummary('');
-      setPending([]);
-      setShown(STEP);
-      listRef.current?.scrollTo({ top: 0 });
-      toast.success('Contacto registrado', 'El seguimiento quedó al día.');
-      await onSaved();
-    } catch (err) {
-      toast.error('No se pudo registrar', err instanceof Error ? err.message : undefined);
-    } finally {
-      setSaving(false);
-    }
+  // Al registrar, el historial vuelve al principio para mostrar lo nuevo.
+  const saved = async () => {
+    setShown(STEP);
+    listRef.current?.scrollTo({ top: 0 });
+    await onSaved();
   };
 
   return (
@@ -222,133 +110,14 @@ export function ActivityLog({ opp, activities, events = [], contacts, onSaved, o
           Seguimiento
         </h2>
 
-        <form
-          onSubmit={submit}
-          onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('Files')) {
-              e.preventDefault();
-              setDragOver(true);
-            }
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
-          }}
-          onDrop={(e) => {
-            if (!e.dataTransfer.files.length) return;
-            e.preventDefault();
-            setDragOver(false);
-            addFiles(e.dataTransfer.files);
-          }}
-          className={clsx('@container relative mt-3 space-y-3 rounded-xl transition-shadow', dragOver && 'shadow-[0_0_0_2px_var(--color-pavonado)]')}
-        >
-          {dragOver && (
-            <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center rounded-xl bg-chapa/90 text-[15px] font-semibold">
-              Soltá los archivos para adjuntarlos
-            </div>
-          )}
-          <div
-            role="radiogroup"
-            aria-label="Tipo de contacto"
-            className="grid gap-1"
-            style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(activityTypes.length, 1), 8)}, minmax(0, 1fr))` }}
-          >
-            {activityTypes.map((t) => {
-              const Icon = ACTIVITY_ICON[t.code as SystemActivityType] ?? DEFAULT_ACTIVITY_ICON;
-              const active = type === t.code;
-              return (
-                <button
-                  key={t.code}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={t.label}
-                  title={t.label}
-                  onClick={() => setType(t.code)}
-                  className={clsx(
-                    'flex h-10 min-w-0 items-center justify-center rounded-[10px] border transition-colors cursor-pointer',
-                    active ? 'border-pavonado bg-pavonado text-white' : 'border-linea text-tinta hover:border-linea-fuerte'
-                  )}
-                >
-                  <Icon className="w-4.5 h-4.5" />
-                </button>
-              );
-            })}
-          </div>
-          <Field label={typeLabel ?? 'Qué pasó'}>
-            {({ id }) => (
-              <Input
-                id={id}
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder={PLACEHOLDER[type as SystemActivityType] ?? (typeLabel ? `${typeLabel}: ¿qué pasó?` : '¿Qué pasó?')}
-              />
-            )}
-          </Field>
-          <div className="grid grid-cols-1 gap-3 @[30rem]:grid-cols-2">
-            <Field label="Con quién">
-              {({ id }) => (
-                <Select
-                  id={id}
-                  value={contactId}
-                  onChange={setContactId}
-                  placeholder="Sin especificar"
-                  options={[{ value: '', label: 'Sin especificar' }, ...contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}`, hint: c.job_title || undefined }))]}
-                />
-              )}
-            </Field>
-            <Field label="Fecha">
-              {({ id }) => <DatePicker id={id} value={date} onChange={setDate} max={today} clearable={false} />}
-            </Field>
-          </div>
-
-          {pending.length > 0 && (
-            <ul className="flex flex-wrap gap-2" aria-label="Archivos adjuntos">
-              {pending.map((p) => (
-                <li
-                  key={p.key}
-                  className={clsx(
-                    'flex max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[13px]',
-                    p.status === 'error' ? 'border-rojo/40 bg-rojo-velo text-rojo-tinta' : 'border-linea bg-chapa-2'
-                  )}
-                >
-                  {p.status === 'subiendo' ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 shrink-0" />}
-                  <span className="min-w-0 max-w-[160px] truncate font-medium">{p.file.name}</span>
-                  <span className="shrink-0 text-tiza">{p.status === 'error' ? 'falló' : formatBytes(p.file.size)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setPending((prev) => prev.filter((x) => x.key !== p.key))}
-                    className="-mr-1 h-6 w-6 shrink-0 inline-flex items-center justify-center rounded text-tiza hover:bg-linea hover:text-tinta cursor-pointer"
-                    aria-label={`Quitar ${p.file.name}`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={ACCEPT}
-              className="sr-only"
-              tabIndex={-1}
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files);
-                e.target.value = '';
-              }}
-            />
-            <Button variant="secundario" onClick={() => fileRef.current?.click()}>
-              <Paperclip className="w-4 h-4" aria-hidden />
-              {pending.length ? `Adjuntar (${pending.length})` : 'Adjuntar'}
-            </Button>
-            <Button type="submit" className="ml-auto" isLoading={saving} disabled={summary.trim().length < 2 || uploading}>
-              {uploading ? 'Subiendo…' : 'Registrar'}
-            </Button>
-          </div>
-        </form>
+        <ActivityForm
+          className="mt-3"
+          opportunityId={opp.id}
+          companyId={opp.company_id}
+          contacts={contacts}
+          defaultContactId={opp.contact_id}
+          onSaved={saved}
+        />
       </div>
 
       <div className="relative border-t border-linea">
@@ -427,6 +196,11 @@ function ActivityItem({ activity: a, who, onOpen }: { activity: Activity; who: s
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-semibold leading-snug break-words">{a.summary}</p>
         {a.description && <p className="mt-0.5 whitespace-pre-line text-sm leading-snug text-tiza break-words">{a.description}</p>}
+        {a.result && (
+          <p className="mt-0.5 text-sm leading-snug break-words">
+            <span className="font-semibold">Resultado:</span> {a.result}
+          </p>
+        )}
         <p className="mt-0.5 text-[13px] text-tiza">
           <span className="cifra">{TIME.format(new Date(a.activity_date))}</span> · {a.user_name || 'Vendedor'}
           {who && <> · con {who}</>}

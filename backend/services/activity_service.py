@@ -17,11 +17,30 @@ def _aware(dt: datetime) -> datetime:
 
 
 _LEGACY_MARK = "Adjuntos:"
+_RESULT_MARK = "Resultado:"
 _TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "pdf": "application/pdf"}
+
+
+def _recover_result(item: dict) -> None:
+    """Base sin la columna result (migración 12): el resultado quedó al final del detalle como «Resultado: …»."""
+    if "result" in item:
+        return
+    item["result"] = None
+    # Se antepone el separador por si el detalle era sólo el resultado.
+    description = "\n\n" + (item.get("description") or "")
+    mark = f"\n\n{_RESULT_MARK} "
+    if mark not in description:
+        return
+    head, _, tail = description.rpartition(mark)
+    result, _, attachments = tail.partition(f"\n\n{_LEGACY_MARK}")
+    item["result"] = result.strip() or None
+    rest = f"\n\n{_LEGACY_MARK}{attachments}" if attachments else ""
+    item["description"] = (head.strip() + rest).strip() or None
 
 
 def _with_attachments(item: dict) -> dict:
     """Normaliza adjuntos. Las bases sin la columna guardaban «Adjuntos:\nnombre: url» en el detalle: se recuperan."""
+    _recover_result(item)
     item["attachments"] = item.get("attachments") or []
     description = item.get("description") or ""
     if item["attachments"] or _LEGACY_MARK not in description:
@@ -39,6 +58,22 @@ def _with_attachments(item: dict) -> dict:
         item["attachments"] = found
         item["description"] = head.strip() or None
     return item
+
+
+_NEW_COLUMNS = ("result", "attachments")
+
+
+def _without(activity: dict, data: ActivityCreate, missing: set[str]) -> dict:
+    """Respaldo para bases viejas: lo que no tiene columna (resultado, enlaces de adjuntos) va al detalle."""
+    fallback = {k: v for k, v in activity.items() if k not in missing}
+    description = fallback.get("description") or ""
+    if "result" in missing and activity.get("result"):
+        description = f"{description}\n\n{_RESULT_MARK} {activity['result']}".strip()
+    if "attachments" in missing and data.attachments:
+        links = "\n".join(f"{a.name}: {a.url}" for a in data.attachments)
+        description = f"{description}\n\n{_LEGACY_MARK}\n{links}".strip()
+    fallback["description"] = description or None
+    return fallback
 
 
 class ActivityService:
@@ -149,7 +184,8 @@ class ActivityService:
             "user_id": str(actual_user_id),
             "activity_type": data.activity_type,
             "summary": data.summary.strip(),
-            "description": data.description.strip() if data.description else None,
+            "description": (data.description or "").strip() or None,
+            "result": (data.result or "").strip() or None,
             "activity_date": _aware(data.activity_date).isoformat(),
             "attachments": [a.model_dump() for a in data.attachments],
             "created_at": now.isoformat(),
@@ -158,17 +194,18 @@ class ActivityService:
 
         try:
             client = get_supabase_client()
-            try:
-                res = client.table("crm_activities").insert(activity_dict).execute()
-            except Exception as col_err:
-                # Base sin la migración 04 (columna attachments): se guardan los enlaces en el detalle.
-                if "attachments" not in str(col_err):
-                    raise
-                fallback = {k: v for k, v in activity_dict.items() if k != "attachments"}
-                if data.attachments:
-                    links = "\n".join(f"{a.name}: {a.url}" for a in data.attachments)
-                    fallback["description"] = f"{fallback.get('description') or ''}\n\nAdjuntos:\n{links}".strip()
-                res = client.table("crm_activities").insert(fallback).execute()
+            # Bases sin la migración 04 (attachments) o 12 (result): se reintenta sin esas columnas.
+            missing: set[str] = set()
+            while True:
+                try:
+                    payload = _without(activity_dict, data, missing) if missing else activity_dict
+                    res = client.table("crm_activities").insert(payload).execute()
+                    break
+                except Exception as col_err:
+                    new = {c for c in _NEW_COLUMNS if c in str(col_err)} - missing
+                    if not new:
+                        raise
+                    missing |= new
             if res.data and len(res.data) > 0:
                 inserted = _with_attachments(res.data[0])
                 inserted["user_name"] = user_name

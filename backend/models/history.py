@@ -23,6 +23,7 @@ class HistoryEntry(BaseModel):
     title: str
     detail: str | None = None
     activity_type: str | None = Field(None, description="Sólo en actividades: llamada, visita_obra, etc.")
+    result: str | None = Field(None, description="Sólo en actividades: resultado de la interacción")
     opportunity_id: UUID | None = None
     opportunity_title: str | None = None
     source_id: str | None = None

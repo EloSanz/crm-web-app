@@ -13,7 +13,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { DetailSection, InfoRow, OpportunityMiniList } from '@/components/clients/DetailBits';
-import { ClientHistory } from '@/components/clients/ClientHistory';
+import { ClientActivity } from '@/components/clients/ClientActivity';
 import { fetchCompany, fetchCompanyContacts, fetchOpportunities, fetchProjects } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { CLIENT_STATUS, PROJECT_STATUS } from '@/lib/catalogs';
@@ -126,7 +126,7 @@ export default function CompanyDetailPage() {
                 )}
               </DetailSection>
             </div>
-            <ClientHistory scope="companies" id={c.id} />
+            <ClientActivity scope="companies" id={c.id} companyId={c.id} contacts={contacts} />
           </div>
         </div>
       </div>

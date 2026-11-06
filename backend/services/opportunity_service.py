@@ -25,8 +25,8 @@ _mock_opportunities: dict[str, dict] = {}
 _mock_items: dict[str, list[dict]] = {}
 _mock_versions: dict[str, list[dict]] = {}
 
-# Columnas agregadas en las migraciones 05 y 10: si la base todavía no las tiene, se guarda sin ellas.
-OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version", "closed_at", "origin")
+# Columnas agregadas en las migraciones 05, 10 y 12: si la base todavía no las tiene, se guarda sin ellas.
+OPTIONAL_OPP_FIELDS = ("discount_pct", "current_version", "closed_at", "origin", "notes", "final_value")
 OPTIONAL_ITEM_FIELDS = ("list_price", "price_tier", "discount_pct")
 BLOCKED_COMPANY_STATUSES = {"inactivo", "no_contactar"}
 
@@ -68,7 +68,9 @@ FIELD_LABEL = {
     "contact_id": "contacto",
     "project_id": "obra",
     "assigned_to": "responsable",
-    "estimated_value": "valor final",
+    "estimated_value": "total presupuestado",
+    "final_value": "valor final",
+    "notes": "observaciones",
     "expected_close_date": "cierre estimado",
     "delivery_location": "entrega",
     "loss_reason": "motivo de pérdida",
@@ -106,6 +108,9 @@ class OpportunityService:
         # Bases sin la migración 10: sin fecha de cierre ni origen propio.
         data.setdefault("closed_at", None)
         data.setdefault("origin", None)
+        # Bases sin la migración 12: sin observaciones ni valor final propio.
+        data.setdefault("notes", None)
+        data.setdefault("final_value", None)
 
         # Responsable comercial
         if data.get("assigned_to"):
@@ -604,6 +609,8 @@ class OpportunityService:
             "current_version": 1,
             "closed_at": None,
             "origin": cls._origin_for(data),
+            "notes": (data.notes or "").strip() or None,
+            "final_value": None,
             "is_deleted": False,
             "deleted_at": None,
             "created_at": now.isoformat(),
@@ -656,13 +663,19 @@ class OpportunityService:
                 update_payload[field] = str(update_payload[field])
         if "expected_close_date" in update_payload and update_payload["expected_close_date"]:
             update_payload["expected_close_date"] = update_payload["expected_close_date"].isoformat()
-        for field in ["estimated_value", "discount_pct"]:
+        for field in ["estimated_value", "discount_pct", "final_value"]:
             if field in update_payload and isinstance(update_payload[field], Decimal):
                 update_payload[field] = float(update_payload[field])
         if data.company_id and str(data.company_id) != str(existing.company_id):
             cls._ensure_company_can_quote(data.company_id)
         if "origin" in update_payload:
             update_payload["origin"] = (update_payload["origin"] or "").strip() or None
+        if "notes" in update_payload:
+            update_payload["notes"] = (update_payload["notes"] or "").strip() or None
+        if "delivery_location" in update_payload:
+            update_payload["delivery_location"] = (update_payload["delivery_location"] or "").strip() or None
+        if "title" in update_payload and update_payload["title"]:
+            update_payload["title"] = update_payload["title"].strip()
 
         # Reglas 4 a 6 y 14: el estado sale de la etapa; cerrar deja fecha y motivo, reabrir pide motivo.
         new_status, target_stage = _stage_status(update_payload.get("stage_id") or existing.stage_id)
@@ -697,8 +710,18 @@ class OpportunityService:
         elif "loss_reason" in update_payload or status_changed:
             update_payload["loss_reason"] = None
         if status_changed:
-            # Fecha real de cierre; al reabrir se limpia. El valor final es el monto vigente (o el que se mande).
+            # Fecha real de cierre; al reabrir se limpia.
             update_payload["closed_at"] = now.isoformat() if new_status != OpportunityStatus.ABIERTA else None
+        # Regla 5: al ganar queda el valor final (el que se mande o el total vigente) sin pisar el presupuestado.
+        if new_status == OpportunityStatus.GANADA:
+            if data.final_value is not None:
+                update_payload["final_value"] = float(data.final_value)
+            elif status_changed:
+                update_payload["final_value"] = float(
+                    update_payload.get("estimated_value", existing.estimated_value) or 0
+                )
+        elif status_changed or "final_value" in update_payload:
+            update_payload["final_value"] = None
 
         # Materiales o descuento → nueva versión con la foto completa (se conserva la historia).
         new_items_payload: list[dict] | None = None

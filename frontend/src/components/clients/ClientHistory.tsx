@@ -92,7 +92,7 @@ interface Result {
 }
 
 /** Historial comercial de una empresa o un contacto: actividades, hitos de sus presupuestos y mensajes. */
-export function ClientHistory({ scope, id }: { scope: HistoryScope; id: string }) {
+export function ClientHistory({ scope, id, refreshKey = 0 }: { scope: HistoryScope; id: string; /** Cambiarlo vuelve a pedir el historial (ej.: al registrar una actividad). */ refreshKey?: number }) {
   const pathname = usePathname() || `/${scope}/${id}`;
   const [filter, setFilter] = useState<Filter>('todo');
   const [attempt, setAttempt] = useState(0);
@@ -100,7 +100,8 @@ export function ClientHistory({ scope, id }: { scope: HistoryScope; id: string }
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Cada pedido tiene su clave: si el resultado no es del pedido actual, se está cargando.
-  const reqKey = `${scope}:${id}:${filter}:${attempt}`;
+  const baseKey = `${scope}:${id}:${filter}:${attempt}`;
+  const reqKey = `${baseKey}:${refreshKey}`;
   const kind = filter === 'todo' ? null : filter;
 
   useEffect(() => {
@@ -113,8 +114,11 @@ export function ClientHistory({ scope, id }: { scope: HistoryScope; id: string }
     };
   }, [scope, id, kind, reqKey]);
 
-  const loading = result?.key !== reqKey;
-  const page = !loading ? result?.page : undefined;
+  const pendingReq = result?.key !== reqKey;
+  // Al refrescar (misma vista, nuevo refreshKey) se mantiene lo que ya se veía hasta que llega lo nuevo.
+  const refreshing = pendingReq && Boolean(result?.page) && Boolean(result?.key.startsWith(`${baseKey}:`));
+  const loading = pendingReq && !refreshing;
+  const page = !pendingReq || refreshing ? result?.page : undefined;
   // Los conteos por tipo no dependen del filtro: se mantienen mientras carga otro.
   const counts = result?.page?.counts;
   const all = counts ? Object.values(counts).reduce((a, b) => a + (b ?? 0), 0) : undefined;
@@ -222,6 +226,11 @@ function HistoryItem({ entry: e, at, back }: { entry: HistoryEntry; at: Date; ba
       <div className={clsx('min-w-0 flex-1', milestone && 'rounded-lg bg-chapa-2 px-3 py-2')}>
         <p className={clsx('leading-snug break-words', milestone ? 'text-[14px] font-bold' : 'text-[15px] font-semibold')}>{e.title}</p>
         {e.detail && <p className="mt-0.5 line-clamp-3 whitespace-pre-line text-sm leading-snug text-tiza break-words">{e.detail}</p>}
+        {e.result && (
+          <p className="mt-0.5 line-clamp-2 text-sm leading-snug break-words">
+            <span className="font-semibold">Resultado:</span> {e.result}
+          </p>
+        )}
         <p className="mt-0.5 text-[13px] text-tiza">
           <span className="cifra">{TIME.format(at)}</span>
           {e.user_name && (

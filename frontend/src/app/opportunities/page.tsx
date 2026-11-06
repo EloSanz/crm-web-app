@@ -140,7 +140,8 @@ export default function OpportunitiesPage() {
     for (const o of scoped) {
       if (o.status !== 'abierta') {
         closed[o.status].n += 1;
-        closed[o.status].amount += Number(o.estimated_value || 0);
+        // En los ganados cuenta el valor final de la venta (si quedó registrado).
+        closed[o.status].amount += Number((o.status === 'ganada' ? o.final_value : null) ?? o.estimated_value ?? 0);
         continue;
       }
       open += 1;

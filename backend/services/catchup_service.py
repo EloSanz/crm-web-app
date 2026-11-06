@@ -66,7 +66,9 @@ def overview(dossier: Dossier) -> dict:
         "won": len(won),
         "lost": len(lost),
         "quoted_total": float(sum(float(o.estimated_value or 0) for o in opps)),
-        "won_total": float(sum(float(o.estimated_value or 0) for o in won)),
+        "won_total": float(
+            sum(float(o.final_value if o.final_value is not None else (o.estimated_value or 0)) for o in won)
+        ),
         "entries": len(dossier.entries),
         "last_contact": last.citation(dossier.company_id) if last else None,
         "sellers": sellers,

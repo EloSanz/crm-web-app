@@ -12,7 +12,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState, LoadingBlock } from '@/components/ui/EmptyState';
 import { DetailSection, InfoRow, OpportunityMiniList } from '@/components/clients/DetailBits';
-import { ClientHistory } from '@/components/clients/ClientHistory';
+import { ClientActivity } from '@/components/clients/ClientActivity';
 import { fetchContact, fetchOpportunities } from '@/lib/api';
 import { useLoad } from '@/lib/useLoad';
 import { CLIENT_STATUS } from '@/lib/catalogs';
@@ -90,7 +90,7 @@ export default function ContactDetailPage() {
             <DetailSection title="Presupuestos" count={opportunities.length}>
               <OpportunityMiniList opportunities={opportunities} />
             </DetailSection>
-            <ClientHistory scope="contacts" id={c.id} />
+            <ClientActivity scope="contacts" id={c.id} companyId={c.company_id} contactId={c.id} />
           </div>
         </div>
       </div>
