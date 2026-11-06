@@ -10,7 +10,13 @@ from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
 
 from backend.config import settings
-from backend.controllers.permissions import MANAGER_ROLES, session_from_header, session_user_id
+from backend.controllers.permissions import (
+    MANAGER_ROLES,
+    authorize_company,
+    authorize_contact,
+    session_from_header,
+    session_user_id,
+)
 from backend.database import get_supabase_client
 from backend.models.activity import ActivityCreate, ActivityResponse, ActivityType
 from backend.models.contact import ContactResponse
@@ -73,7 +79,10 @@ def _resolve(
     opportunity_id: UUID | None,
     contact_id: UUID | None,
     company_id: UUID | None,
+    phone: str | None = None,
 ) -> _Context:
+    """Arma el contexto del contacto con el cliente y verifica que la sesión lo pueda ver: el presupuesto
+    tiene que ser del vendedor y el contacto o la empresa, clientes suyos o de la cartera libre."""
     session = session_from_header(authorization)
     opp = None
     if opportunity_id:
@@ -82,15 +91,43 @@ def _resolve(
 
     contact = None
     if contact_id:
-        contact = ContactService.get_contact_by_id(contact_id)
+        contact = authorize_contact(authorization, contact_id)
     elif opp and opp.contact_id:
         try:
             contact = ContactService.get_contact_by_id(opp.contact_id)
         except HTTPException:
             contact = None
+    if company_id:
+        authorize_company(authorization, company_id)
 
     company = company_id or (opp.company_id if opp else None) or (contact.company_id if contact else None)
+    if phone:
+        _authorize_phone(authorization, session, phone, anchored=bool(opp or contact or company_id))
     return _Context(opp, contact, company, session_user_id(authorization), session)
+
+
+def _authorize_phone(authorization: str | None, session: dict, raw_phone: str, anchored: bool) -> None:
+    """Un teléfono suelto puede ser de cualquier cliente: si es de un contacto o empresa cargados, se
+    autoriza ese cliente. Si no es de nadie, sólo se acepta anclado a un presupuesto o cliente ya
+    autorizado (p. ej. el teléfono de obra de un presupuesto propio) o para admin y responsable comercial."""
+    if session.get("role") in MANAGER_ROLES:
+        return
+    number = whatsapp_service.normalize_phone(raw_phone)
+    if not number:
+        return  # sin número válido no hay nada que consultar (el endpoint responde 422 si lo necesita)
+    contact = _match_contact(number)
+    if contact:
+        authorize_contact(authorization, UUID(str(contact["id"])))
+        return
+    company = _match_company(number)
+    if company:
+        authorize_company(authorization, UUID(str(company["id"])))
+        return
+    if not anchored:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ese teléfono no es de un cliente tuyo: sólo el administrador o el responsable comercial pueden consultarlo",
+        )
 
 
 def _contact_name(contact: ContactResponse | None) -> str | None:
@@ -199,6 +236,9 @@ def send_email(data: EmailSendRequest, authorization: str | None = Header(None))
         original = MessageService.get(data.reply_to_message_id)
         if not original or original.channel != MessageChannel.EMAIL:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontramos el correo a responder")
+        # Responder un correo deja ver el hilo: tiene que ser de un presupuesto propio.
+        if original.opportunity_id and not ctx.opportunity_id:
+            _authorize_opportunity(ctx.session, OpportunityService.get_opportunity_by_id(original.opportunity_id))
         if ctx.opportunity_id and original.opportunity_id and str(original.opportunity_id) != str(ctx.opportunity_id):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Ese correo es de otro presupuesto"
@@ -300,7 +340,9 @@ def list_messages(
     user_filter = None
     if opportunity_id:
         _authorize_opportunity(session, OpportunityService.get_opportunity_by_id(opportunity_id))
-    elif not contact_id and session.get("role") not in MANAGER_ROLES:
+    if contact_id:
+        authorize_contact(authorization, contact_id)
+    elif not opportunity_id and session.get("role") not in MANAGER_ROLES:
         user_filter = session_user_id(authorization)
     return MessageService.list_messages(
         opportunity_id=opportunity_id, contact_id=contact_id, channel=channel, user_id=user_filter, limit=limit
@@ -335,7 +377,7 @@ def whatsapp_conversation(
 ) -> WhatsAppConversation:
     if not contact_id and not phone:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Indicá un contacto o un teléfono")
-    ctx = _resolve(authorization, opportunity_id, contact_id, None)
+    ctx = _resolve(authorization, opportunity_id, contact_id, None, phone)
     number = _require_phone(phone or (ctx.contact.phone if ctx.contact else None))
 
     messages = MessageService.list_messages(phone=number, channel=MessageChannel.WHATSAPP, limit=200)
@@ -369,7 +411,7 @@ def whatsapp_send(data: WhatsAppSendRequest, authorization: str | None = Header(
             status_code=status.HTTP_409_CONFLICT,
             detail="WhatsApp todavía no está conectado. Abrí la conversación en WhatsApp.",
         )
-    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id)
+    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id, data.phone)
     number = _require_phone(data.phone or (ctx.contact.phone if ctx.contact else None))
     if data.template and not whatsapp_service.template_available():
         raise HTTPException(
@@ -419,7 +461,7 @@ def whatsapp_send(data: WhatsAppSendRequest, authorization: str | None = Header(
     summary="Registrar que se abrió WhatsApp (wa.me) con el cliente",
 )
 def whatsapp_log(data: WhatsAppLogRequest, authorization: str | None = Header(None)) -> ActivityResponse:
-    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id)
+    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id, data.phone)
     number = whatsapp_service.normalize_phone(data.phone or (ctx.contact.phone if ctx.contact else None))
     text = (data.text or "").strip()
     return ActivityService.create_activity(
@@ -442,7 +484,7 @@ def whatsapp_log(data: WhatsAppLogRequest, authorization: str | None = Header(No
     summary="Registrar una llamada saliente al cliente",
 )
 def call_log(data: CallLogRequest, authorization: str | None = Header(None)) -> ActivityResponse:
-    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id)
+    ctx = _resolve(authorization, data.opportunity_id, data.contact_id, data.company_id, data.phone)
     raw_phone = (data.phone or (ctx.contact.phone if ctx.contact else None) or "").strip()
     number = whatsapp_service.normalize_phone(raw_phone)
     return ActivityService.create_activity(

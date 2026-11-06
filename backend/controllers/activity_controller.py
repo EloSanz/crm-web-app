@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from backend.controllers.auth_controller import decode_simple_token
-from backend.controllers.permissions import ensure_owner, owner_scope
+from backend.controllers.permissions import authorize_company, authorize_contact, ensure_owner, owner_scope
 from backend.models.activity import ActivityCreate, ActivityResponse
 from backend.services.activity_service import ActivityService
 from backend.services.catalog_service import CatalogService
@@ -50,8 +50,19 @@ def create_activity(
     user_id = _extract_user_id(authorization)
     # El tipo tiene que existir y estar activo en el catálogo que configura el administrador.
     CatalogService.ensure_activity_type(data.activity_type)
+    # Regla 9: toda actividad queda vinculada a un presupuesto, una empresa o un contacto.
+    if not (data.opportunity_id or data.company_id or data.contact_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La actividad tiene que estar vinculada a un presupuesto, una empresa o un contacto.",
+        )
     if data.opportunity_id:
         ensure_owner(authorization, OpportunityService.get_opportunity_by_id(data.opportunity_id).assigned_to)
+    # Un vendedor sólo registra actividades sobre clientes que puede ver (los suyos o la cartera libre).
+    if data.company_id:
+        authorize_company(authorization, data.company_id)
+    if data.contact_id:
+        authorize_contact(authorization, data.contact_id)
     return ActivityService.create_activity(data, user_id=user_id)
 
 

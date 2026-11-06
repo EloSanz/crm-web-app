@@ -50,7 +50,20 @@ def decode_simple_token(token: str) -> dict:
         raise _invalid()
     if not isinstance(data, dict) or int(data.get("exp") or 0) < time.time():
         raise _invalid()
+    ensure_active_user(data)
     return data
+
+
+def ensure_active_user(data: dict) -> None:
+    """Un usuario dado de baja deja de entrar en el momento (a lo sumo un minuto después, por la caché),
+    aunque su token todavía no haya vencido. Si el usuario no figura en crm_users se lo deja pasar."""
+    from backend.services.user_service import UserService
+
+    if data.get("sub") and UserService.is_active_cached(data["sub"]) is False:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu usuario está dado de baja. Hablá con el administrador.",
+        )
 
 
 @router.post(
@@ -89,10 +102,14 @@ async def get_current_user(authorization: str = Header(None)) -> UserResponse:
         )
 
     data = decode_simple_token(authorization)
+    from backend.services.user_service import UserService
+
+    # Estado real del usuario en crm_users (si no figura ahí, se lo toma como activo).
+    is_active = UserService.is_active_cached(data.get("sub", ""))
     return UserResponse(
         id=data.get("sub", ""),
         email=data.get("email", ""),
         full_name=data.get("name", "Usuario"),
         role=data.get("role", "ejecutivo_ventas"),
-        is_active=True,
+        is_active=True if is_active is None else is_active,
     )

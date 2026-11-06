@@ -6,6 +6,8 @@ from backend.controllers.auth_controller import decode_simple_token
 from backend.controllers.pagination import LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT
 from backend.controllers.permissions import (
     MANAGER_ROLES,
+    authorize_company,
+    authorize_contact,
     ensure_owner,
     owner_scope,
     require_roles,
@@ -37,6 +39,16 @@ def _ensure_can_touch_closed(authorization: str | None, opp: OpportunityResponse
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El presupuesto está cerrado: sólo el administrador o el responsable comercial lo pueden modificar o reabrir.",
         )
+
+
+def _authorize_client(authorization: str | None, data, current: OpportunityResponse | None = None) -> None:
+    """Un vendedor sólo presupuesta a clientes que puede ver (los suyos o la cartera libre). En una
+    edición se autoriza sólo el cliente nuevo: el que ya tenía el presupuesto propio sigue valiendo."""
+    for field, authorize in (("company_id", authorize_company), ("contact_id", authorize_contact)):
+        new = getattr(data, field)
+        if not new or (current is not None and str(new) == str(getattr(current, field))):
+            continue
+        authorize(authorization, new)
 
 
 def _extract_user_id(authorization: str | None) -> UUID | None:
@@ -95,6 +107,7 @@ def create_opportunity(
 ) -> OpportunityResponse:
     """Crea un presupuesto para una obra/cliente con sus materiales. El vendedor siempre queda como responsable."""
     user_id = _extract_user_id(authorization)
+    _authorize_client(authorization, data)
     if owner_scope(authorization) is not None or data.assigned_to is None:
         data.assigned_to = user_id or data.assigned_to
     return OpportunityService.create_opportunity(data, created_by=user_id)
@@ -153,6 +166,7 @@ def update_opportunity(
     _ensure_can_touch_closed(authorization, current)
     if data.assigned_to is not None and str(current.assigned_to) != str(data.assigned_to):
         require_roles(authorization, MANAGER_ROLES)
+    _authorize_client(authorization, data, current)
     return OpportunityService.update_opportunity(opp_id, data, user_id=user_id)
 
 
