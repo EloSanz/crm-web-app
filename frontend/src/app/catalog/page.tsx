@@ -76,7 +76,12 @@ export default function CatalogPage() {
     helper.accessor('name', {
       header: 'Material',
       sortFn: 'text',
-      cell: (info) => <span className="block truncate font-semibold">{info.getValue()}</span>,
+      // Hasta dos renglones: el nombre del material es lo que más importa en la fila.
+      cell: (info) => (
+        <span className="line-clamp-2 min-w-[11rem] font-semibold leading-snug" title={info.getValue()}>
+          {info.getValue()}
+        </span>
+      ),
     }),
     helper.accessor(categoryPosition, {
       id: 'rubro',
